@@ -1,0 +1,28 @@
+diff --git a/classical_renderer/scatter.py b/classical_renderer/scatter.py
+index 3118306..7ccf4c8 100644
+--- a/classical_renderer/scatter.py
++++ b/classical_renderer/scatter.py
+@@ -138,7 +138,7 @@ class _FunctionRender(torch.autograd.Function):
+                 grid=tuple([int((n + 512 - 1) / 512), 1, 1]),
+                 block=tuple([512, 1, 1]),
+                 args=[
+-                    cupy.int(n),
++                    int(n),
+                     image.data_ptr(),
+                     defocus.data_ptr(),
+                     defocus_dilate.data_ptr(),
+diff --git a/classical_renderer/scatter_ex.py b/classical_renderer/scatter_ex.py
+index a777ec9..3d07fdd 100644
+--- a/classical_renderer/scatter_ex.py
++++ b/classical_renderer/scatter_ex.py
+@@ -154,8 +154,8 @@ class _FunctionRender(torch.autograd.Function):
+                 grid=tuple([int((n + 512 - 1) / 512), 1, 1]),
+                 block=tuple([512, 1, 1]),
+                 args=[
+-                    cupy.int(n),
+-                    cupy.int(poly_sides),
++                    int(n),
++                    int(poly_sides),
+                     cupy.float32(init_angle),
+                     image.data_ptr(),
+                     defocus.data_ptr(),

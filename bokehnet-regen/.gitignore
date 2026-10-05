@@ -1,0 +1,7 @@
+output/
+.cache/
+.pydeps/
+__pycache__/
+*.pyc
+.env
+logs/
