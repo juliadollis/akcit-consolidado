@@ -1,0 +1,907 @@
+<title>Correções da DeblurNet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..112,400..700&family=JetBrains+Mono:wght@400..600&family=Source+Serif+4:opsz,wght@8..60,400..600&display=swap">
+
+<style>
+:root{
+  --bg:#F1F1F4;
+  --surface:#FFFFFF;
+  --surface-2:#E9E9EE;
+  --ink:#191B20;
+  --ink-soft:#5A5F6B;
+  --ink-faint:#868C99;
+  --rule:#D6D7DE;
+  --rule-soft:#E4E5EA;
+  --accent:#A66A12;
+  --accent-soft:#F0E2CB;
+  --danger:#A8362C;
+  --danger-soft:#F3DFDC;
+  --ok:#2A6E52;
+  --ok-soft:#D9EBE2;
+  --code-bg:#F7F7F9;
+  --shadow:0 1px 2px rgba(25,27,32,.06), 0 8px 24px -16px rgba(25,27,32,.28);
+
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --body:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --measure:68ch;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#131519;
+    --surface:#1A1D23;
+    --surface-2:#22262E;
+    --ink:#E4E5E9;
+    --ink-soft:#9AA0AC;
+    --ink-faint:#767D8A;
+    --rule:#2E323B;
+    --rule-soft:#262A32;
+    --accent:#D9A048;
+    --accent-soft:#3A2E1B;
+    --danger:#E58074;
+    --danger-soft:#3A2320;
+    --ok:#62BE95;
+    --ok-soft:#1B3229;
+    --code-bg:#14171C;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#131519;
+  --surface:#1A1D23;
+  --surface-2:#22262E;
+  --ink:#E4E5E9;
+  --ink-soft:#9AA0AC;
+  --ink-faint:#767D8A;
+  --rule:#2E323B;
+  --rule-soft:#262A32;
+  --accent:#D9A048;
+  --accent-soft:#3A2E1B;
+  --danger:#E58074;
+  --danger-soft:#3A2320;
+  --ok:#62BE95;
+  --ok-soft:#1B3229;
+  --code-bg:#14171C;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box;}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:var(--body);
+  font-size:17px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+  margin:0;
+  padding:0 20px 120px;
+}
+::selection{background:var(--accent-soft);color:var(--ink);}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px;}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px;}
+
+/* ---------- shell ---------- */
+.wrap{max-width:1180px;margin:0 auto;}
+.masthead{padding:72px 0 40px;border-bottom:1px solid var(--rule);}
+.eyebrow{
+  font-family:var(--display);font-variation-settings:"wdth" 112;
+  font-weight:600;font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--accent);margin:0 0 18px;
+}
+h1{
+  font-family:var(--display);font-variation-settings:"wdth" 82;
+  font-weight:700;font-size:clamp(40px,7vw,68px);line-height:1.02;
+  letter-spacing:-.018em;margin:0;text-wrap:balance;
+}
+.deck{
+  font-size:20px;line-height:1.5;color:var(--ink-soft);
+  max-width:60ch;margin:20px 0 0;
+}
+.meta{
+  display:flex;flex-wrap:wrap;gap:10px 34px;margin:34px 0 0;
+  font-family:var(--mono);font-size:12px;color:var(--ink-faint);
+}
+.meta b{
+  display:block;font-weight:600;color:var(--ink-soft);
+  letter-spacing:.08em;text-transform:uppercase;font-size:10.5px;margin-bottom:3px;
+}
+
+.layout{display:block;}
+@media (min-width:1060px){
+  .layout{display:grid;grid-template-columns:212px minmax(0,1fr);gap:56px;align-items:start;}
+  .rail{position:sticky;top:32px;}
+}
+
+/* ---------- rail ---------- */
+.rail{padding:44px 0 0;}
+.rail h2{
+  font-family:var(--display);font-variation-settings:"wdth" 108;
+  font-size:10.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-faint);margin:0 0 14px;
+}
+.rail ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1px;}
+.rail a{
+  display:grid;grid-template-columns:26px 1fr;gap:8px;align-items:baseline;
+  padding:5px 8px;border-radius:3px;text-decoration:none;
+  font-family:var(--display);font-variation-settings:"wdth" 92;
+  font-size:12.5px;line-height:1.35;color:var(--ink-soft);
+}
+.rail a:hover{background:var(--surface-2);color:var(--ink);}
+.rail .n{font-family:var(--mono);font-size:10.5px;color:var(--accent);font-weight:600;}
+@media (max-width:1059px){.rail{display:none;}}
+
+/* ---------- typography flow ---------- */
+.col{padding-top:44px;min-width:0;}
+.col > p,.col > ul,.col > ol,.col > .note{max-width:var(--measure);}
+.col p{margin:0 0 1.05em;}
+.col ul,.col ol{margin:0 0 1.15em;padding-left:1.25em;}
+.col li{margin:0 0 .42em;}
+.col li::marker{color:var(--ink-faint);}
+
+section{margin:0 0 72px;}
+.sec-head{display:flex;align-items:center;gap:14px;margin:0 0 26px;}
+.sec-head svg{flex:none;color:var(--accent);}
+h2.sec{
+  font-family:var(--display);font-variation-settings:"wdth" 86;
+  font-weight:700;font-size:27px;letter-spacing:-.012em;margin:0;
+}
+h3.sub{
+  font-family:var(--display);font-variation-settings:"wdth" 96;
+  font-weight:600;font-size:15px;letter-spacing:.01em;
+  margin:34px 0 12px;color:var(--ink);
+}
+
+code{
+  font-family:var(--mono);font-size:.855em;
+  background:var(--surface-2);padding:.1em .34em;border-radius:3px;
+  overflow-wrap:break-word;
+}
+pre{
+  margin:0 0 18px;background:var(--code-bg);
+  border:1px solid var(--rule-soft);border-radius:5px;
+  padding:15px 17px;overflow-x:auto;
+}
+pre code{
+  background:none;padding:0;font-size:12.6px;line-height:1.62;
+  color:var(--ink);white-space:pre;display:block;
+}
+.cap{
+  font-family:var(--mono);font-size:11px;color:var(--ink-faint);
+  margin:-10px 0 20px;
+}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;margin:0 0 22px;border:1px solid var(--rule);border-radius:5px;background:var(--surface);}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:520px;}
+th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--rule-soft);vertical-align:top;}
+thead th{
+  font-family:var(--display);font-variation-settings:"wdth" 104;
+  font-size:10.5px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--ink-faint);background:var(--surface-2);border-bottom:1px solid var(--rule);
+  white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:none;}
+td.num,th.num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12.5px;text-align:right;white-space:nowrap;}
+td.mono{font-family:var(--mono);font-size:12px;}
+tr.hi td{background:var(--accent-soft);}
+
+/* ---------- item cards ---------- */
+.item{
+  background:var(--surface);border:1px solid var(--rule);border-radius:6px;
+  box-shadow:var(--shadow);margin:0 0 26px;overflow:hidden;
+}
+.item-head{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:15px 20px;border-bottom:1px solid var(--rule-soft);background:var(--surface-2);
+}
+.cid{
+  font-family:var(--mono);font-size:12px;font-weight:600;
+  color:var(--surface);background:var(--ink);
+  padding:3px 8px;border-radius:3px;letter-spacing:.02em;
+}
+.item-head h3{
+  font-family:var(--display);font-variation-settings:"wdth" 88;
+  font-weight:700;font-size:18.5px;letter-spacing:-.008em;margin:0;flex:1 1 260px;
+}
+.sev{
+  font-family:var(--display);font-variation-settings:"wdth" 108;
+  font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;
+  padding:3px 9px;border-radius:99px;border:1px solid currentColor;white-space:nowrap;
+}
+.sev-block{color:var(--danger);}
+.sev-high{color:var(--accent);}
+.sev-mid{color:var(--ink-soft);}
+.sev-low{color:var(--ink-faint);}
+.loc{
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);
+  margin:0;padding:11px 20px 0;
+}
+.body{padding:14px 20px 20px;}
+.body > *:last-child{margin-bottom:0;}
+.body p{margin:0 0 1em;max-width:var(--measure);}
+.body ul,.body ol{max-width:var(--measure);margin:0 0 1.05em;padding-left:1.2em;}
+
+.zone{border-left:3px solid var(--rule);padding:2px 0 2px 17px;margin:0 0 22px;}
+.zone:last-child{margin-bottom:0;}
+.zone-bad{border-left-color:var(--danger);}
+.zone-why{border-left-color:var(--ink-faint);}
+.zone-fix{border-left-color:var(--ok);}
+.zone h4{
+  font-family:var(--display);font-variation-settings:"wdth" 106;
+  font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  margin:0 0 10px;
+}
+.zone-bad h4{color:var(--danger);}
+.zone-why h4{color:var(--ink-faint);}
+.zone-fix h4{color:var(--ok);}
+
+.note{
+  border:1px solid var(--rule);border-left:3px solid var(--accent);
+  background:var(--accent-soft);border-radius:0 5px 5px 0;
+  padding:13px 17px;margin:0 0 20px;font-size:15px;
+}
+.note p{margin:0 0 .7em;}
+.note p:last-child{margin:0;}
+.note .lbl{
+  font-family:var(--display);font-variation-settings:"wdth" 106;
+  font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--accent);display:block;margin-bottom:6px;
+}
+
+/* ---------- order list ---------- */
+.order{list-style:none;margin:0;padding:0;counter-reset:step;max-width:var(--measure);}
+.order li{
+  counter-increment:step;display:grid;grid-template-columns:36px 1fr;gap:14px;
+  padding:11px 0;border-bottom:1px solid var(--rule-soft);align-items:baseline;margin:0;
+}
+.order li:last-child{border-bottom:none;}
+.order li::before{
+  content:counter(step,decimal-leading-zero);
+  font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent);
+}
+.order b{
+  font-family:var(--mono);font-size:12.5px;font-weight:600;
+  background:var(--surface-2);padding:1px 6px;border-radius:3px;margin-right:7px;
+}
+
+.ok-list{list-style:none;margin:0;padding:0;max-width:var(--measure);}
+.ok-list li{
+  display:grid;grid-template-columns:16px 1fr;gap:11px;align-items:baseline;
+  padding:7px 0;border-bottom:1px solid var(--rule-soft);font-size:15.5px;margin:0;
+}
+.ok-list li:last-child{border-bottom:none;}
+.ok-list li::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--ok);transform:translateY(-2px);}
+
+footer{
+  margin-top:24px;padding-top:24px;border-top:1px solid var(--rule);
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);max-width:var(--measure);
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <p class="eyebrow">GenRefocus · Stage 1 · reprodução do arXiv 2512.16923v3</p>
+  <h1>Correções da DeblurNet</h1>
+  <p class="deck">Onze mudanças no treino, auditadas contra a inferência oficial dos autores. Cada uma diz como está hoje, por que quebra, e exatamente o que colocar no lugar.</p>
+  <div class="meta">
+    <span><b>Alvo</b>genfocus_train/</span>
+    <span><b>Árvores</b>genrefocus_deblurnet_paper · genrefocus_deblurnet</span>
+    <span><b>Referência</b>third_party/Genfocus/</span>
+    <span><b>Bloqueantes</b>C1 · C11-1</span>
+  </div>
+</header>
+
+<div class="layout">
+
+<nav class="rail" aria-label="Ordem de execução">
+  <h2>Ordem</h2>
+  <ol>
+    <li><a href="#c0"><span class="n">C0</span><span>Medições prévias</span></a></li>
+    <li><a href="#c1"><span class="n">C1</span><span>proj_out no LoRA</span></a></li>
+    <li><a href="#c3"><span class="n">C3</span><span>Warmup</span></a></li>
+    <li><a href="#c7"><span class="n">C7</span><span>Seed por rank</span></a></li>
+    <li><a href="#c8"><span class="n">C8</span><span>Metadata</span></a></li>
+    <li><a href="#c9"><span class="n">C9</span><span>Schema do concat</span></a></li>
+    <li><a href="#c5"><span class="n">C5</span><span>Top-3000 por cena</span></a></li>
+    <li><a href="#c4"><span class="n">C4</span><span>Escala × sigma</span></a></li>
+    <li><a href="#c2"><span class="n">C2</span><span>Guidance</span></a></li>
+    <li><a href="#c6"><span class="n">C6</span><span>Adapter do texto</span></a></li>
+    <li><a href="#c10"><span class="n">C10</span><span>Validação</span></a></li>
+    <li><a href="#c11"><span class="n">C11</span><span>Dfs de treino</span></a></li>
+    <li><a href="#ok"><span class="n">✓</span><span>Não mexer</span></a></li>
+  </ol>
+</nav>
+
+<main class="col">
+
+<section id="ordem">
+  <div class="sec-head">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3Z"/><path d="M12 7.6 16.4 15H7.6Z"/></svg>
+    <h2 class="sec">Ordem de execução</h2>
+  </div>
+  <p>Não reordene. O C1 muda a arquitetura e precisa vir antes de qualquer treino novo; o C2 só pode ser medido depois dele, porque o C1 muda quais módulos sofrem o efeito da guidance.</p>
+  <ol class="order">
+    <li><span><b>C0</b>Medições que não mudam código. Decidem C4, C5 e C11.</span></li>
+    <li><span><b>C1</b>Remover <code>proj_out</code> de topo do LoRA. Invalida os checkpoints existentes.</span></li>
+    <li><span><b>C3</b>Warmup — o primeiro update roda com LR 500× maior que o previsto.</span></li>
+    <li><span><b>C7 C8 C9</b>Baratos, sem efeito sobre o resultado.</span></li>
+    <li><span><b>C5</b>Top-3000 por cena em vez de por linha.</span></li>
+    <li><span><b>C4</b>Regime de escala e cronograma de sigma. Exige os runs curtos do C0-4.</span></li>
+    <li><span><b>C2</b>Guidance do treino. Medir só depois do C1.</span></li>
+    <li><span><b>C6</b>Inferência do modelo main+cond. Não bloqueia o treino.</span></li>
+    <li><span><b>C10</b>Validação e seleção de checkpoint.</span></li>
+    <li><span><b>C11</b>Dfs de treino.</span></li>
+  </ol>
+</section>
+
+<section id="c0">
+  <div class="sec-head">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3Z"/><path d="M12 7.6 16.4 15H7.6Z"/></svg>
+    <h2 class="sec">C0 · Medições prévias</h2>
+  </div>
+  <p>Nenhuma mudança de código. Quatro resultados que decidem o resto.</p>
+
+  <h3 class="sub">C0-1 · Resolução realmente armazenada nos dfs</h3>
+<pre><code>import os
+from datasets import load_dataset
+tok = os.environ["HF_TOKEN"]
+for repo, split in [("akcit-pixel/DDPD","train"), ("akcit-pixel/RealBokeh","train")]:
+    st = load_dataset(repo, split=split, streaming=True, token=tok)
+    for i, r in zip(range(20), st):
+        print(repo, r["file_name_base"], r["image_blur"].size, r["image_focus"].size)</code></pre>
+  <p>Se o DDPD não estiver em 1680×1120, o df já reduziu o blur em relação aos dados do paper e o LPIPS da Tabela 2 deixa de ser diretamente comparável ao publicado. Ver C11-1.</p>
+
+  <h3 class="sub">C0-2 · Quantas GTs distintas o top-3000 seleciona</h3>
+<pre><code>import os, json, hashlib
+from datasets import load_dataset
+ds = load_dataset("akcit-pixel/RealBokeh", split="train", token=os.environ["HF_TOKEN"])
+cache = os.path.expanduser("~/.cache/huggingface/genfocus_filter_cache/"
+                           f"akcit-pixel_RealBokeh_train_image_focus_top3000_n{len(ds)}.json")
+idx = json.load(open(cache))
+sub = ds.select(idx).select_columns(["image_focus"])
+h = {hashlib.md5(r["image_focus"].tobytes()).hexdigest() for r in sub}
+print("linhas selecionadas:", len(idx), "| GTs distintas:", len(h))</code></pre>
+  <p>Hipótese: ~580 GTs distintas para 3000 linhas.</p>
+
+  <h3 class="sub">C0-3 · Contagem de módulos LoRA injetados</h3>
+<pre><code>from peft.tuners.lora import LoraLayer
+mods = [n for n, m in backbone.transformer.named_modules() if isinstance(m, LoraLayer)]
+print(len(mods))                                # hoje: 344 | oficial: 343
+print([n for n in mods if n.count(".") == 0])   # hoje: ['x_embedder', 'proj_out']</code></pre>
+
+  <h3 class="sub">C0-4 · Runs curtos que decidem o C4</h3>
+  <p>Depois de C1+C3, três treinos de ~3000 steps com a mesma seed e os mesmos dados. Detalhe em C4.</p>
+</section>
+
+<section id="itens">
+  <div class="sec-head">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3Z"/><path d="M12 7.6 16.4 15H7.6Z"/></svg>
+    <h2 class="sec">As mudanças</h2>
+  </div>
+
+  <!-- C1 -->
+  <article class="item" id="c1">
+    <div class="item-head"><span class="cid">C1</span><h3><code>proj_out</code> de topo está recebendo LoRA</h3><span class="sev sev-block">bloqueante</span></div>
+    <p class="loc">genfocus_train/backbone.py:83 · idêntico nas duas árvores</p>
+    <div class="body">
+      <div class="zone zone-bad">
+        <h4>Como está</h4>
+<pre><code>LORA_TARGET_MODULES = [
+    "to_q", "to_k", "to_v", "to_out.0",
+    "norm1.linear",
+    "ff.net.2",
+    "norm.linear",
+    "proj_mlp",
+    "proj_out",        # ← linha 83
+    "x_embedder",
+]</code></pre>
+      </div>
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p>PEFT casa alvo por <code>key == target or key.endswith("." + target)</code>. A projeção final do <code>FluxTransformer2DModel</code> chama-se literalmente <code>proj_out</code> no topo do módulo, então além dos 38 <code>single_transformer_blocks.N.proj_out</code> o PEFT injeta LoRA também em <code>transformer.proj_out</code>.</p>
+        <p>Essa camada é executada sem controle por branch:</p>
+<pre><code>image_hidden_states = self.norm_out(all_hidden_states[txt_n], tembs[txt_n])
+output = self.proj_out(image_hidden_states)      # ← FORA de qualquer specify_lora</code></pre>
+        <p>Sem <code>specify_lora</code>, o <code>scaling</code> fica no valor natural (<code>alpha/r = 1</code>) e a LoRA age incondicionalmente, inclusive com <code>main_adapter=None</code>. Duas consequências: a variante <em>_paper</em> não é “LoRA só na condição”, e a entrada dessa camada depende do <code>temb</code> do main — que é onde o descasamento de guidance do C2 entra mesmo no cond-only.</p>
+        <p>Prova por contagem, contra o header do <code>bokehNet.safetensors</code> oficial já dumpado (686 tensores, <b>343</b> módulos):</p>
+        <div class="tw"><table>
+          <thead><tr><th>Grupo</th><th>Módulos por bloco</th><th class="num">Blocos</th><th class="num">Total</th></tr></thead>
+          <tbody>
+            <tr><td>Duplos</td><td class="mono">to_q, to_k, to_v, to_out.0, norm1.linear, ff.net.2</td><td class="num">19</td><td class="num">114</td></tr>
+            <tr><td>Single</td><td class="mono">to_q, to_k, to_v, norm.linear, proj_mlp, proj_out</td><td class="num">38</td><td class="num">228</td></tr>
+            <tr><td>Topo</td><td class="mono">x_embedder</td><td class="num">1</td><td class="num">1</td></tr>
+            <tr><td><b>Oficial</b></td><td></td><td class="num"></td><td class="num"><b>343</b></td></tr>
+            <tr class="hi"><td>Topo (extra)</td><td class="mono">proj_out</td><td class="num">1</td><td class="num">1</td></tr>
+            <tr class="hi"><td><b>Nosso</b></td><td></td><td class="num"></td><td class="num"><b>344</b></td></tr>
+          </tbody>
+        </table></div>
+        <p>Conferido que não há outros falsos positivos: <code>norm_out.linear</code>, <code>norm1_context.linear</code>, <code>ff_context.net.2</code>, <code>add_q_proj</code> e <code>to_add_out</code> não casam com nenhum alvo.</p>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+        <p>Trocar as strings soltas por regex ancorado nos blocos. <code>LoraConfig</code> aceita <code>target_modules</code> como <code>str</code> e, nesse caso, PEFT usa <code>re.fullmatch</code> — por isso as âncoras são obrigatórias.</p>
+<pre><code># Alvos ancorados nos BLOCOS. Strings soltas não servem: PEFT casa por
+# `key == target or key.endswith("." + target)`, e a projeção final do
+# FluxTransformer2DModel chama-se `proj_out` no topo do módulo — ela seria
+# capturada e ficaria ativa FORA do controle por branch do specify_lora.
+LORA_TARGET_MODULES = (
+    r"^(transformer_blocks|single_transformer_blocks)\.\d+\."
+    r"(attn\.(to_q|to_k|to_v|to_out\.0)|norm1\.linear|ff\.net\.2|"
+    r"norm\.linear|proj_mlp|proj_out)$"
+    r"|^x_embedder$"
+)</code></pre>
+        <p>E uma trava dura em <code>_inject_lora()</code>, logo depois do <code>add_adapter</code>:</p>
+<pre><code>from peft.tuners.lora import LoraLayer
+lora_modules = [n for n, m in self.transformer.named_modules() if isinstance(m, LoraLayer)]
+if len(lora_modules) != 343:
+    raise RuntimeError(
+        f"LoRA injetado em {len(lora_modules)} módulos; o oficial tem 343. "
+        f"Módulos de topo (suspeitos): {[n for n in lora_modules if '.' not in n]}"
+    )</code></pre>
+      </div>
+      <div class="note">
+        <span class="lbl">Migração — obrigatório ler</span>
+        <p>Depois desta mudança, <code>maybe_resume_checkpoint</code> encontra <code>proj_out.lora_A.default.weight</code> no checkpoint antigo, classifica como <code>unexpected</code> e <b>só imprime um WARN, descartando o peso em silêncio</b>. Isso muda o modelo sem avisar.</p>
+        <p>Treinos novos começam do zero. E o WARN vira erro:</p>
+<pre><code>topo = [n for n in unexpected if "." not in n.split(".lora_")[0]]
+if topo:
+    raise RuntimeError(
+        f"Checkpoint anterior ao C1 (LoRA em módulo de topo: {topo}). "
+        "Incompatível com a arquitetura corrigida — treine do zero."
+    )</code></pre>
+        <p>O peso já publicado em <code>juliadollis/genrefocus-deblurnet-paper-4gpu</code> contém a chave extra e é autoconsistente na inferência — continua avaliável, mas <b>não é comparável cabeça a cabeça</b> com um modelo pós-C1.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- C2 -->
+  <article class="item" id="c2">
+    <div class="item-head"><span class="cid">C2</span><h3>Guidance do treino não bate com a inferência do Deblur</h3><span class="sev sev-high">alto</span></div>
+    <p class="loc">genfocus_train/backbone.py:383-384 · nas duas árvores</p>
+    <div class="body">
+      <div class="zone zone-bad">
+        <h4>Como está</h4>
+<pre><code>guidance_main = torch.ones(B, device=device, dtype=dtype)   # 1.0
+guidance_cond = torch.ones(B, device=device, dtype=dtype)   # 1.0</code></pre>
+      </div>
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p>A inferência oficial usa valores <b>diferentes por estágio</b>. O default é <code>guidance_scale: float = 3.5</code> (<code>flux.py:467</code>), e <code>flux.py:707</code> monta <code>guidances = [guidance]*2 + c_guidances</code>:</p>
+        <div class="tw"><table>
+          <thead><tr><th>Origem</th><th>Chamada</th><th>Efetivo [texto, main, cond]</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">Inference_bokehNet.py:175</td><td class="mono">generate(…, guidance_scale=1.0)</td><td class="mono">[1.0, 1.0, 1.0]</td></tr>
+            <tr><td class="mono">demo.py:240 (bokeh)</td><td class="mono">generate(…, guidance_scale=1.0)</td><td class="mono">[1.0, 1.0, 1.0]</td></tr>
+            <tr class="hi"><td class="mono">Inference_deblurNet.py</td><td class="mono">generate(…) sem guidance_scale</td><td class="mono">[3.5, 3.5, 1.0]</td></tr>
+            <tr class="hi"><td class="mono">demo.py:168 (deblur)</td><td class="mono">generate(…) sem guidance_scale</td><td class="mono">[3.5, 3.5, 1.0]</td></tr>
+          </tbody>
+        </table></div>
+        <p>Os autores baixaram de propósito a guidance no BokehNet e deixaram 3,5 no DeblurNet — duas fontes independentes confirmam. A auditoria em <code>historico-ultimo.md:283</code> registra “Guidance: todas 1.0 — confere com a inferência de bokeh”. Está certa para o BokehNet; a conclusão foi carregada para o DeblurNet sem reconferir.</p>
+        <p>A guidance entra só via <code>get_temb</code>, que produz o vetor de modulação daquele branch. A severidade depende de quais módulos LoRA consomem esse <code>temb</code>:</p>
+        <div class="tw"><table>
+          <thead><tr><th>Variante</th><th>Quem consome o temb do main</th><th>Severidade</th></tr></thead>
+          <tbody>
+            <tr><td>cond-only pós-C1</td><td>nenhum LoRA no main</td><td>indireta, leve</td></tr>
+            <tr><td>cond-only hoje</td><td><code>proj_out</code> de topo, sobre o hidden state do main</td><td>moderada</td></tr>
+            <tr class="hi"><td>main+cond</td><td><code>norm1.linear</code> (19) e <code>norm.linear</code> (38) recebem o temb como <b>entrada direta</b></td><td>severa — é o modelo de 60k</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+        <p>Parar de hardcodar. Em <code>ModelConfig</code>:</p>
+<pre><code># Guidance embutido no temb de cada branch. NÃO é CFG — o FLUX.1-dev é
+# guidance-distilled e recebe esse escalar como entrada do modelo.
+# Tem que ser o MESMO da inferência do estágio:
+#   deblur: Inference_deblurNet.py não passa guidance_scale -> default 3.5
+#   bokeh:  Inference_bokehNet.py passa guidance_scale=1.0
+# A condição recebe 1.0 nos dois casos (flux.py:622).
+deblur_train_guidance: float = 3.5
+bokeh_train_guidance: float = 1.0
+cond_train_guidance: float = 1.0</code></pre>
+<pre><code>guidance_main = torch.full((B,), self.train_guidance, device=device, dtype=dtype)
+guidance_cond = torch.full((B,), self.cond_guidance, device=device, dtype=dtype)</code></pre>
+        <p>Gravar o valor usado no metadata do checkpoint (C8).</p>
+      </div>
+      <div class="note">
+        <span class="lbl">Medir antes de retreinar</span>
+        <p>O modelo de 60k já existe. Rodar a avaliação em <code>akcit-pixel/DDPD:test</code> com <code>guidance_scale</code> ∈ {1.0, 3.5} passado explicitamente, resto idêntico. Se <b>1,0 ganhar</b>, o treino está certo e é a inferência que precisa passar <code>guidance_scale=1.0</code> — corrija os scripts e documente o desvio. Se <b>3,5 ganhar</b>, confirma que o treino é que estava errado. Fazer depois do C1.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- C3 -->
+  <article class="item" id="c3">
+    <div class="item-head"><span class="cid">C3</span><h3>O primeiro update roda com LR 500× maior que o previsto</h3><span class="sev sev-high">alto</span></div>
+    <p class="loc">genfocus_train/trainer.py:686-688 · nas duas árvores</p>
+    <div class="body">
+      <div class="zone zone-bad">
+        <h4>Como está</h4>
+<pre><code>if accelerator.sync_gradients:
+    ...
+    optimizer.step()                     # ← usa o LR que estiver no param_group
+    optimizer.zero_grad(set_to_none=True)
+
+if accelerator.sync_gradients:
+    state.global_step += 1
+    scheduler.step(state.global_step)    # ← só AGORA o LR é ajustado</code></pre>
+      </div>
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p>O <code>param_group["lr"]</code> nasce com <code>config.optimizer.lr</code> (1e-4) e o scheduler só é aplicado depois do primeiro <code>optimizer.step()</code>. Além disso o índice fica deslocado: <code>global_step</code> já foi incrementado e <code>_lr_at</code> usa <code>(step + 1) / warmup</code>. Executando o scheduler isolado com <code>lr=1e-4</code>, <code>warmup=500</code>:</p>
+        <div class="tw"><table>
+          <thead><tr><th>Update</th><th class="num">Real</th><th class="num">Correto</th></tr></thead>
+          <tbody>
+            <tr class="hi"><td>#1</td><td class="num">1.000e-04</td><td class="num">2.000e-07</td></tr>
+            <tr><td>#2</td><td class="num">4.000e-07</td><td class="num">4.000e-07</td></tr>
+            <tr><td>#3</td><td class="num">6.000e-07</td><td class="num">6.000e-07</td></tr>
+            <tr><td>#4</td><td class="num">8.000e-07</td><td class="num">8.000e-07</td></tr>
+          </tbody>
+        </table></div>
+        <p>O primeiro update aplica LR 500× acima do início do warmup, sobre pesos LoRA recém-inicializados — exatamente o update em que o warmup existe para proteger. Depois disso o warmup inteiro roda um step adiantado.</p>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+        <p>Duas mudanças, ambas necessárias. Primeiro, aplicar o LR antes do primeiro update — depois do <code>maybe_resume_checkpoint</code> e antes de <code>iterator = _cycle(dataloader)</code>:</p>
+<pre><code># O param_group nasce com o lr base; sem isto o PRIMEIRO update roda com
+# 1e-4 em vez do primeiro passo do warmup. No resume, reposiciona o LR no
+# ponto certo da curva.
+scheduler.step(state.global_step)</code></pre>
+        <p>Segundo, corrigir o deslocamento em <code>WarmupCosineScheduler._lr_at</code>:</p>
+<pre><code>def _lr_at(self, base_lr: float, step: int) -> float:
+    if step &lt; self.warmup_steps:
+        # step é 0-based e representa quantos updates JÁ ocorreram.
+        # max(step, 1) evita LR exatamente 0 no primeiro update.
+        return base_lr * float(max(step, 1)) / float(max(1, self.warmup_steps))
+    ...</code></pre>
+        <p><b>Verificar:</b> no wandb, <code>deblur/lr</code> no step 10 tem que ser <code>2.0e-06</code>, e <code>1.0e-04</code> nunca deve aparecer antes do step 500.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- C4 -->
+  <article class="item" id="c4">
+    <div class="item-head"><span class="cid">C4</span><h3>Escala espacial × cronograma de sigma</h3><span class="sev sev-high">alto · decisão medida</span></div>
+    <p class="loc">genfocus_train/data.py:144-200 · genfocus_train/backbone.py:301-325, 364</p>
+    <div class="body">
+      <div class="zone zone-bad">
+        <h4>Como está</h4>
+<pre><code>scale = image_size / min(w, h)          # data.py:166 — lado MENOR vai para 512
+new_w = max(image_size, round(w * scale))
+new_h = max(image_size, round(h * scale))
+...
+sigma_u = self.sample_sigma(B, N, device, dtype)   # backbone.py:364 — N = 1024 (o crop)</code></pre>
+      </div>
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p>Dois eixos precisam bater entre treino e inferência, e hoje nenhum regime acerta os dois. Números com a config do FLUX-dev (<code>base_seq=256, max_seq=4096, base_shift=0.5, max_shift=1.15</code>), assumindo armazenado 1024×688:</p>
+        <div class="tw"><table>
+          <thead><tr><th>Regime</th><th>Dims por forward</th><th class="num">seq</th><th class="num">mu</th><th class="num">exp(mu)</th><th class="num">Escala vs treino</th></tr></thead>
+          <tbody>
+            <tr><td>treino</td><td class="mono">512×512</td><td class="num">1024</td><td class="num">0,6300</td><td class="num">1,878</td><td class="num">1,000×</td></tr>
+            <tr><td>eval <code>long_side=512</code></td><td class="mono">512×336</td><td class="num">672</td><td class="num">0,5704</td><td class="num">1,769</td><td class="num">0,672×</td></tr>
+            <tr><td>eval <code>long_side=0</code></td><td class="mono">tile 512×512</td><td class="num">1024</td><td class="num">0,9225</td><td class="num">2,516</td><td class="num">1,344×</td></tr>
+          </tbody>
+        </table></div>
+        <p class="cap">O mu do long_side=0 vem de 2752 tokens da imagem inteira, não dos 1024 do tile.</p>
+        <p><code>long_side=512</code> erra a <b>escala espacial</b>: o treino reduz o lado <em>menor</em> e a avaliação reduz o lado <em>maior</em>, então o blur na avaliação é 1,49× menor do que o modelo viu. <code>long_side=0</code> acerta melhor a escala e o <code>seq</code> do forward — o tile é 32×32 tokens = 1024, igual ao treino — mas erra o <b>cronograma de sigma</b>: em <code>flux.py:624</code>, <code>image_seq_len = latents.shape[1]</code> é da imagem inteira, calculado antes do tiling.</p>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+        <p>Existe uma opção que acerta os dois eixos, e é a que corresponde ao regime que os autores assumem — <code>demo.py:298</code>: <em>“Disable tiling tricks: Not recommended when the longer side is around 1000px or more”</em>, ou seja, imagem grande com tiles de 512×512 px nativos.</p>
+
+        <h3 class="sub">Opção A (recomendada) · crop nativo + mu da imagem inteira</h3>
+        <p>1. Em <code>prepare_aligned_pair</code>, não redimensionar. Só fazer upscale se algum lado for menor que 512:</p>
+<pre><code>w, h = aif_pil.size
+if min(w, h) &lt; image_size:                      # única situação que exige resize
+    scale = image_size / min(w, h)
+    new_w, new_h = round(w * scale), round(h * scale)
+    aif_r  = aif_pil.resize((new_w, new_h), Image.BICUBIC)
+    blur_r = blur_pil.resize((new_w, new_h), Image.BICUBIC)
+else:
+    new_w, new_h = w, h                          # ESCALA NATIVA: o crop 512x512 é
+    aif_r, blur_r = aif_pil, blur_pil            # o mesmo tile que a inferência vê</code></pre>
+        <p>2. O dataloader devolve o <code>seq_len</code> da imagem de origem inteira:</p>
+<pre><code>fw, fh = (new_w // 16) * 16, (new_h // 16) * 16
+full_seq_len = (fw // 16) * (fh // 16)          # ex.: 1024x688 -> 64*43 = 2752</code></pre>
+        <p>3. <code>sample_sigma</code> passa a aceitar <code>seq_len</code> por amostra:</p>
+<pre><code>def sample_sigma(self, seq_len: torch.Tensor, device, dtype) -&gt; torch.Tensor:
+    """seq_len: (B,) — tokens da IMAGEM DE ORIGEM inteira, não do crop.
+    A inferência oficial calcula mu de latents.shape[1] da imagem completa
+    (flux.py:624), ANTES do tiling; cada tile herda esse cronograma."""
+    B = seq_len.shape[0]
+    u = torch.sigmoid(torch.randn(B, device=device, dtype=torch.float32))
+    cfg = self._scheduler_config
+    m = (cfg.max_shift - cfg.base_shift) / (cfg.max_image_seq_len - cfg.base_image_seq_len)
+    mu = seq_len.to(torch.float32) * m + (cfg.base_shift - cfg.base_image_seq_len * m)
+    exp_mu = torch.exp(mu)
+    sigma = (exp_mu * u) / (1.0 + (exp_mu - 1.0) * u)
+    return sigma.to(dtype=dtype)</code></pre>
+        <p>4. Avaliar sempre com <code>long_side=0</code> e tiling ligado, e remover <code>long_side=512</code> de <code>scripts/make_examples.py:80</code>.</p>
+
+        <h3 class="sub">Opção B (alternativa) · tudo a 512², sem tiling</h3>
+        <p>Treinar reduzindo o lado <em>maior</em> para 512 (imagem inteira, não crop) e avaliar com <code>long_side=512</code> e <code>NO_TILED_DENOISE=True</code>. Acerta os dois eixos também, mas abandona o regime nativo dos autores e perde detalhe fino.</p>
+      </div>
+      <div class="note">
+        <span class="lbl">O experimento que decide</span>
+        <p>Não escolha por argumento. Três treinos de ~3000 steps, mesma seed, mesmos dados, já com C1+C3:</p>
+        <div class="tw"><table>
+          <thead><tr><th>Run</th><th>Dataloader</th><th>mu do sigma</th></tr></thead>
+          <tbody>
+            <tr><td>R1 (atual)</td><td>lado menor → 512, crop 512²</td><td>do crop (1024)</td></tr>
+            <tr><td>R2 (Opção A)</td><td>crop nativo 512²</td><td>da imagem inteira</td></tr>
+            <tr><td>R3 (Opção B)</td><td>lado maior → 512, imagem inteira</td><td>do próprio 512²</td></tr>
+          </tbody>
+        </table></div>
+        <p>Avaliar os três em <code>DDPD:test</code> nos três regimes de inferência e montar a matriz 3×3 de LPIPS/DISTS. Reportar a matriz inteira, não só a diagonal — o objetivo é saber se algum run é robusto fora do próprio regime.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- C5 -->
+  <article class="item" id="c5">
+    <div class="item-head"><span class="cid">C5</span><h3><code>top_k_sharpest</code> seleciona linhas, não cenas</h3><span class="sev sev-mid">médio</span></div>
+    <p class="loc">genfocus_train/data.py:401-463</p>
+    <div class="body">
+      <div class="zone zone-bad">
+        <h4>Como está</h4>
+<pre><code>for i, row in enumerate(dataset.select_columns([column])):
+    scores[i] = _laplacian_variance(row[column])     # column = "image_focus"
+top_idx = np.argsort(scores)[::-1][:k]               # data.py:442 — ranking por LINHA</code></pre>
+      </div>
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p><code>akcit-pixel/RealBokeh:train</code> tem 20.495 <b>linhas</b> para ~3.960 <b>cenas</b>: cada linha é (uma entrada borrada de abertura X, o <em>mesmo</em> <code>image_focus</code> f/22 da cena). Como o score é medido em <code>image_focus</code>, ele é idêntico dentro da cena — os empates são exatos. O <code>argsort</code> puxa cenas inteiras, e o top-3000 vira ~580 GTs distintas repetidas ~5,2×.</p>
+        <p>O paper é explícito em §B.1 — <em>“we retain the top 3,000 sharpest <b>images</b>”</em> — e §4.1 fecha em 3,5K pares (344 DPDD + 3000 RealBokeh). Não é um desastre, mesmo alvo com blurs diferentes é boa aumentação, mas é 5× menos diversidade de conteúdo do que o número sugere.</p>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+        <p>Ranquear por cena e amostrar a linha dentro da cena. Preserva os 3000 pares do paper, recupera a diversidade e mantém a aumentação por abertura.</p>
+        <p>1. Identidade da cena — medir primeiro qual chave existe (C0-2). Preferir, nesta ordem: coluna explícita de cena; prefixo de <code>file_name_base</code>; hash dos bytes de <code>image_focus</code>.</p>
+<pre><code>def _scene_key(record: dict) -&gt; str:
+    """Identidade da CENA. O ranking de nitidez tem que ser por cena, não por
+    linha: no RealBokeh o mesmo image_focus f/22 aparece em ~5 linhas (uma por
+    abertura), com score de Laplaciano idêntico, e o top-k puxaria cenas
+    inteiras (~580 GTs para 3000 linhas) em vez de 3000 imagens distintas."""</code></pre>
+        <p>2. Novo seletor: agrupa índices por cena, mede a variância uma vez por cena, ranqueia cenas, pega as top-k, devolve os grupos.</p>
+        <p>3. <code>HuggingFaceDeblurDataset</code> passa a ter <code>__len__ == k</code> e sorteia a linha:</p>
+<pre><code>def __getitem__(self, index):
+    grupo = self.scene_groups[index]           # linhas daquela cena
+    row_i = grupo[0] if not self.runtime.train else int(self._rng.integers(len(grupo)))
+    record = self.dataset[row_i]</code></pre>
+        <p>Versão mínima, se a acima for muito invasiva: deduplicar para uma linha por cena (a de maior blur) <em>antes</em> de medir, e então ranquear. Perde a aumentação por abertura.</p>
+      </div>
+      <div class="note">
+        <span class="lbl">Crítico — invalidar o cache</span>
+        <p><code>_filter_cache_path</code> (data.py:388) monta a chave com <code>f"{safe}_{column}_top{k}_n{n}"</code>. Nenhum desses campos muda com a nova lógica, então o próximo run leria os <b>índices antigos</b> e a correção não teria efeito nenhum, em silêncio.</p>
+<pre><code>_FILTER_SELECTOR_VERSION = "v2-by-scene"   # BUMP a cada mudança na seleção
+...
+return os.path.join(cache_dir,
+    f"{safe}_{column}_top{k}_n{n}_{_FILTER_SELECTOR_VERSION}.json")</code></pre>
+      </div>
+    </div>
+  </article>
+
+  <!-- C6 -->
+  <article class="item" id="c6">
+    <div class="item-head"><span class="cid">C6</span><h3>A inferência do main+cond liga LoRA no branch de texto</h3><span class="sev sev-mid">médio</span></div>
+    <p class="loc">scripts/infer_mainlora.py · vision-pipeline/inference/src/pipelines/deblur_net.py</p>
+    <div class="body">
+      <div class="zone zone-bad">
+        <h4>Como está</h4>
+        <p>Passa-se <code>main_adapter="deblurring"</code> para compensar o treino main+cond.</p>
+      </div>
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p><code>generate</code> monta <code>adapters = [main_adapter] * 2 + c_adapters</code>, e o índice 0 é o <b>branch de texto</b> (<code>txt_n = 1</code>). No <code>single_block_forward</code> os hidden states são <code>[*text, *image]</code> e o texto passa por:</p>
+<pre><code>with specify_lora((self.norm.linear, self.proj_mlp), adapters[i]):   # i = 0 -> texto
+with specify_lora((self.proj_out,), adapters[i]):</code></pre>
+        <p>Ou seja, <code>main_adapter="deblurring"</code> liga LoRA no texto em 38 blocos single. Mas o treino original (<code>genrefocus_deblurnet/genfocus_train/backbone.py:407</code>) usa <code>[None, ADAPTER_NAME] + [ADAPTER_NAME] * n_cond</code> — texto sem adapter. Nos blocos duplos não há efeito: os módulos do texto não são alvos de LoRA nem passam por <code>specify_lora</code>.</p>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+        <p>Não tocar em <code>third_party/Genfocus/</code> — é o clone de referência. Adicionar o parâmetro na nossa cópia, <code>vision-pipeline/inference/Genfocus/pipeline/flux.py</code>:</p>
+<pre><code>def generate(
+    ...,
+    main_adapter: Optional[List[str]] = None,
+    text_adapter: Optional[str] = "__same_as_main__",   # DESVIO NOSSO, ver nota
+    ...
+):
+    # NOTA (desvio deliberado do upstream): o generate oficial monta
+    # `adapters = [main_adapter]*2 + c_adapters`, e o índice 0 é o branch de
+    # TEXTO. Nosso DeblurNet main+cond foi treinado com [texto=None,
+    # main=LoRA, cond=LoRA]; passar main_adapter="deblurring" ligaria LoRA no
+    # texto em 38 single blocks, coisa que o treino nunca fez.
+    _text = main_adapter if text_adapter == "__same_as_main__" else text_adapter</code></pre>
+        <p>Substituir <code>[main_adapter] * 2</code> por <code>[_text, main_adapter]</code> nas <b>três</b> chamadas a <code>transformer_forward</code> — ramo tiled, ramo normal e ramo <code>image_guidance_scale != 1.0</code>. Nos scripts do modelo main+cond, passar <code>main_adapter="deblurring", text_adapter=None</code>.</p>
+        <p><b>Verificar:</b> avaliar o mesmo peso de 60k nas duas configurações em <code>DDPD:test</code>. Se a diferença for desprezível, documentar e seguir; se não, as métricas anteriores precisam ser refeitas.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- C7 -->
+  <article class="item" id="c7">
+    <div class="item-head"><span class="cid">C7</span><h3>Todos os ranks sorteiam o mesmo ruído e o mesmo sigma</h3><span class="sev sev-low">baixo</span></div>
+    <p class="loc">genfocus_train/trainer.py:549</p>
+    <div class="body">
+      <div class="zone zone-bad">
+        <h4>Como está</h4>
+<pre><code>_set_seed(config.runtime.seed)      # idêntico em todos os processos</code></pre>
+      </div>
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p>Com 4 GPUs × <code>gradient_accumulation_steps=8</code>, o batch efetivo é 32 — mas os 4 ranks sorteiam os mesmos 8 sigmas e os mesmos 8 tensores de ruído. O batch tem só 8 σ distintos em vez de 32, o que aumenta a variância do gradiente sem nenhum ganho. Os pesos LoRA continuam idênticos entre ranks porque há <code>broadcast</code> explícito do rank 0, então diferenciar a seed é seguro.</p>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+<pre><code>accelerator = _build_accelerator(config)
+# Seed POR RANK: os pesos LoRA já são sincronizados por broadcast explícito,
+# então ranks com RNG diferente é o que queremos — senão as 4 GPUs sorteiam
+# o mesmo sigma/ruído e o batch efetivo 32 tem só 8 σ distintos.
+_set_seed(config.runtime.seed + accelerator.process_index)</code></pre>
+        <p>Manter o smoke test (<code>trainer.py:893</code>) com a seed pura — é single-process e precisa ser reprodutível.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- C8 -->
+  <article class="item" id="c8">
+    <div class="item-head"><span class="cid">C8</span><h3>O checkpoint não registra a variante nem o que muda o modelo</h3><span class="sev sev-mid">médio · operacional</span></div>
+    <p class="loc">genfocus_train/trainer.py:260</p>
+    <div class="body">
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p>Existem duas variantes de DeblurNet e elas exigem chamadas de inferência diferentes. O repo <code>juliadollis/genrefocus-deblurnet-paper-4gpu</code> é main+cond apesar do nome, e foi exatamente esse tipo de confusão que produziu o bug da saída lavada (LPIPS ~0,85). Nada no artefato diz qual é qual.</p>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+<pre><code>"metadata": {
+    ...,
+    # Tudo que MUDA o modelo e precisa ser reproduzido na inferência:
+    "adapter_variant": "cond-only" if not config.model.lora_on_main else "main+cond",
+    "text_adapter": None,                      # o treino nunca põe LoRA no texto
+    "train_guidance_main": float(train_guidance),
+    "train_guidance_cond": float(cond_guidance),
+    "lora_rank": int(backbone.lora_rank),
+    "n_lora_modules": n_lora_modules,          # 343 pós-C1
+    "image_size": int(stage_cfg.image_size),
+    "dataloader_scale_mode": stage_cfg.scale_mode,   # short_side | native | long_side
+    "sigma_mu_source": stage_cfg.sigma_mu_source,    # crop | full_image
+    "prompt": STAGE_PROMPTS[stage],
+}</code></pre>
+        <p>Escrever um <code>&lt;stage&gt;.json</code> ao lado do <code>.safetensors</code> exportado com o mesmo dicionário, para o artefato publicado no HF carregar essa informação.</p>
+        <p>Adicionar também <code>lora_on_main: bool = False</code> em <code>ModelConfig</code> e usar em <code>forward_train_step</code>, para que as duas variantes fiquem a um campo de YAML de distância em vez de duas árvores de código divergentes.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- C9 -->
+  <article class="item" id="c9">
+    <div class="item-head"><span class="cid">C9</span><h3><code>concatenate_datasets</code> sem alinhar colunas</h3><span class="sev sev-low">baixo</span></div>
+    <p class="loc">genfocus_train/data.py:479-484</p>
+    <div class="body">
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p><code>concatenate_datasets</code> exige <code>features</code> idênticas. Qualquer coluna a mais ou a menos entre os dois repos levanta exceção — e isso acontece <b>depois</b> do filtro de nitidez, que leva ~20 min. Carregar <code>image_pre_deblur</code> (não usado) ainda desperdiça I/O.</p>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+<pre><code>_DEBLUR_KEEP = ["image_blur", "image_focus", "file_name_base"]
+
+def _load_hf_sources(sources):
+    loaded = []
+    for source in sources:
+        ds = _load_hf_split(source)
+        faltando = [c for c in _DEBLUR_KEEP if c not in ds.column_names]
+        if faltando:
+            raise ValueError(f"{source.name}:{source.split} não tem {faltando}")
+        # Alinha o schema ANTES do concat: o concatenate_datasets exige features
+        # idênticas e falharia só depois dos ~20 min do filtro de nitidez.
+        # image_pre_deblur é descartado de propósito (variante §3.4, não usada).
+        loaded.append(ds.select_columns(_DEBLUR_KEEP))
+    return loaded[0] if len(loaded) == 1 else concatenate_datasets(loaded)</code></pre>
+        <p>Fazer o <code>select_columns</code> dentro de <code>_load_hf_split</code>, antes do <code>_select_top_k_sharpest</code>, para o filtro também ficar mais leve.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- C10 -->
+  <article class="item" id="c10">
+    <div class="item-head"><span class="cid">C10</span><h3>Nenhuma validação durante o treino</h3><span class="sev sev-mid">médio</span></div>
+    <p class="loc">genfocus_train/trainer.py · loop principal</p>
+    <div class="body">
+      <div class="zone zone-why">
+        <h4>Por que é problema</h4>
+        <p><code>state.best_loss</code> é a loss de treino de <b>um único micro-batch</b>, com σ e ruído sorteados — não é sinal de nada. Não há avaliação em split de validação em 60K steps, e <code>keep_last_n_checkpoints=5</code> descarta checkpoints por ordem, não por qualidade.</p>
+      </div>
+      <div class="zone zone-fix">
+        <h4>Como tem que ficar</h4>
+        <p>A cada <code>eval_every_steps</code> (novo campo em <code>RuntimeConfig</code>, sugestão 1000), rodar o mesmo forward de treino sobre N amostras fixas de <code>akcit-pixel/DDPD:validation</code> (73 imagens), com σ e ruído <b>fixos por seed</b> — assim a métrica é comparável entre steps:</p>
+<pre><code># σ determinístico: uma grade fixa cobrindo o range, mesma para todo step.
+sigmas_val = torch.linspace(0.1, 0.9, 9)
+gen = torch.Generator(device=device).manual_seed(1234)</code></pre>
+        <p>Logar <code>deblur/val_loss</code> e usar <em>essa</em> métrica para <code>best_loss</code> e para decidir qual checkpoint preservar. Não tentar rodar as 28 etapas de denoise + LPIPS dentro do treino — caro demais e desnecessário para seleção de checkpoint.</p>
+      </div>
+    </div>
+  </article>
+
+  <!-- C11 -->
+  <article class="item" id="c11">
+    <div class="item-head"><span class="cid">C11</span><h3>Dfs de treino</h3><span class="sev sev-block">C11-1 bloqueante</span></div>
+    <p class="loc">configs/train_base*.yaml · configs/train_ddpd*.yaml</p>
+    <div class="body">
+      <div class="tw"><table>
+        <thead><tr><th>Df</th><th>Split</th><th class="num">Linhas</th><th>Uso</th><th>Situação</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">akcit-pixel/DDPD</td><td>train</td><td class="num">344</td><td>100%</td><td>o split oficial do DPDD tem <b>350</b> cenas — faltam 6</td></tr>
+          <tr><td class="mono">akcit-pixel/RealBokeh</td><td>train</td><td class="num">20.495</td><td class="mono">top_k=3000</td><td>C5: seleciona linhas, não cenas</td></tr>
+          <tr><td class="mono">akcit-pixel/RealDOF</td><td>validation</td><td class="num">50</td><td>—</td><td>correto fora do treino: é benchmark</td></tr>
+          <tr><td class="mono">akcit-pixel/LFDOF</td><td>train</td><td class="num">11.247</td><td>—</td><td>correto fora: é fonte do BokehNet (§3.2c)</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="zone zone-bad">
+        <h4>C11-1 · Resolução armazenada (bloqueante para a Tabela 2)</h4>
+        <p>Depende do C0-1. Se o <code>akcit-pixel/DDPD</code> estiver gravado em ~1024×688 em vez do original 1680×1120, o df já reduziu o blur em 1,64× em relação aos dados do paper, e as nossas métricas são calculadas sobre imagens reduzidas — <b>não são diretamente comparáveis</b> aos números publicados. Registrar em <code>PANORAMA.md</code> com a ressalva explícita e, se possível, regerar os dfs na resolução original.</p>
+      </div>
+      <div class="zone zone-why">
+        <h4>C11-2 · Escala inconsistente entre fontes</h4>
+        <p>Com “lado menor → 512”, um DDPD 1024×688 encolhe 0,744× e um RealBokeh_3MP (~2048×1536) encolhe 0,333×. As duas fontes entregam blur em regimes espaciais diferentes <b>dentro do mesmo treino</b>. A Opção A do C4 elimina isso automaticamente; com a Opção B, é obrigatório normalizar antes.</p>
+      </div>
+      <div class="zone zone-why">
+        <h4>C11-3 · DPDD com 344 linhas, não 350</h4>
+        <p>O split oficial é 350/74/76 (500 cenas); o repo tem 344/73/75 = 492. O paper diz <em>“all images from the official training split”</em>. Verificar se a perda foi intencional e documentar.</p>
+      </div>
+      <div class="zone zone-why">
+        <h4>C11-4 · Balanceamento DPDD vs RealBokeh</h4>
+        <p>344 + 3000 com shuffle uniforme → DPDD é 10,3% das amostras, e DPDD é a mesa da Tabela 2. O paper não especifica peso. Adicionar <code>sampling_weight</code> opcional em <code>DatasetSourceConfig</code> e medir junto do experimento do C4 — não mudar às cegas.</p>
+      </div>
+    </div>
+  </article>
+
+</section>
+
+<section id="ok">
+  <div class="sec-head">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M12 2.6 20.1 7.3v9.4L12 21.4 3.9 16.7V7.3Z"/><path d="M12 7.6 16.4 15H7.6Z"/></svg>
+    <h2 class="sec">Conferido e correto — não mexer</h2>
+  </div>
+  <p>Reauditado contra <code>Inference_deblurNet.py</code>, <code>demo.py</code> e <code>Genfocus/pipeline/flux.py</code>.</p>
+  <ul class="ok-list">
+    <li>Ordem dos branches <code>[texto, main, *cond]</code> e o <code>assert len(adapters) == len(timesteps)</code>.</li>
+    <li>Timesteps por branch <code>[σ, σ, 0]</code> — a condição é “limpa” (<code>flux.py:621</code>).</li>
+    <li>Guidance da <b>condição</b> = 1.0 (<code>flux.py:622</code>) — bate com o treino.</li>
+    <li>IDs de posição: <code>position_delta=[0,0]</code>, <code>position_scale=1.0</code>; o treino usa <code>_prepare_latent_image_ids(B, H//2, W//2)</code>, idêntico ao fallback do <code>encode_images</code>.</li>
+    <li><code>group_mask</code>: com 1 condição, <code>ones</code> e <code>ones + diag(1)</code> são o mesmo tensor.</li>
+    <li>Prompt <code>"a sharp photo with everything in focus"</code>.</li>
+    <li>Alvo do flow: <code>x_t = (1-σ)x₀ + σε</code>, <code>v* = ε - x₀</code> — bate com o <code>FlowMatchEulerDiscreteScheduler.step</code>.</li>
+    <li>Normalização <code>[-1,1]</code> via <code>/127.5 - 1</code> == <code>image_processor.preprocess</code>.</li>
+    <li><code>alpha = r</code> → <code>scaling = 1</code>, que é o valor que <code>specify_lora</code> força na inferência.</li>
+    <li>Export <code>.safetensors</code> em fp32 — o <code>load_state_dict</code> do PEFT converte no load.</li>
+    <li><code>AcceleratedOptimizer.step()/zero_grad()</code> são guardados por <code>sync_gradients</code>; chamá-los fora do <code>if</code> não duplica updates.</li>
+    <li>28 etapas de denoise, <code>TILE_SIZE=32</code> (512 px), overlap 4 (64 px), blend gaussiano — nada disso é decidido no treino.</li>
+    <li><code>image_pre_deblur</code> não usado: correto, é a variante §3.4, que na inferência usa <code>position_delta=[0, 32]</code> na condição extra.</li>
+  </ul>
+
+  <h3 class="sub">Desvios conhecidos e aceitos — documentar, não “corrigir”</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Item</th><th>Situação</th></tr></thead>
+    <tbody>
+      <tr><td>rank 128 vs 64</td><td>o texto do paper (§4.1) diz <code>r=128</code>; o <code>deblurNet.safetensors</code> oficial tem rank 64 em todos os tensores. Divergência dos próprios autores. Mantemos 128.</td></tr>
+      <tr><td>steps</td><td>paper 60K; <code>train_base.yaml</code> usa 8000 e <code>train_ddpd*.yaml</code> 1800-2000, por limite de cluster. É subtreino, não erro.</td></tr>
+      <tr><td>otimizador</td><td>AdamW lr=1e-4, wd=1e-4, cosine warmup 500, bf16 — não especificados pelo paper. Escolha documentada.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>
+  Fonte em markdown: retreinar-deblur/PLANO_CORRECOES_DEBLURNET.md · também em genrefocus_deblurnet_paper/ ·
+  auditoria de genfocus_train/ contra third_party/Genfocus/ (Inference_deblurNet.py, Inference_bokehNet.py, demo.py, Genfocus/pipeline/flux.py)
+</footer>
+
+</main>
+</div>
+</div>

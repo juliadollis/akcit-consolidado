@@ -1,0 +1,52 @@
+# Imagem da AVALIACAO quantitativa (dgx-H100-01, docker).
+#
+# Deriva da julia-genrefocus:1.0, que tem o trio ML comprovado
+# (transformers 5.0.0.dev0 / diffusers 0.37.1 / peft 0.18.1) e acrescenta SO o
+# que o pipeline de avaliacao do time precisa.
+#
+# POR QUE EXISTE O constraints.txt ABAIXO (nao remova)
+# A 1a build desta imagem instalou pyiqa/CLIP/depth_pro sem restricao e o pip
+# ARRASTOU o transformers de 5.0.0.dev0 para 5.15.1 — justamente o pacote que
+# carrega os text encoders do FLUX e que o docker/verify_env.py trata como
+# CRITICO. O constraints congela o trio: o pip pode instalar o que quiser, menos
+# mexer nessas versoes.
+#
+# ATENCAO — divergencia deliberada: o requirements.txt do vision-pipeline pede
+# `diffusers==0.31.0`. NAO rebaixamos: 0.37.1 e a versao que treinou o nosso
+# modelo. Rebaixar quebraria o contrato que custou 4 jobs falhos em julho.
+FROM julia-genrefocus:1.0
+
+# `transformers` fica FORA do constraints por um motivo tecnico: 5.0.0.dev0 nao
+# existe no PyPI, entao um pin explicito faria o pip tentar resolver e falhar.
+# Em vez disso instalamos com --no-deps o que arrasta transformers, e deixamos o
+# resto resolver normalmente sob o constraints do trio.
+RUN printf 'diffusers==0.37.1\npeft==0.18.1\naccelerate==1.11.0\ntorch==2.9.0+cu126\nnumpy==1.26.4\n' > /tmp/constraints.txt
+
+# 1) deps que NAO mexem no transformers: resolucao normal, sob constraints.
+# einops/openpyxl/tabulate: dependencias reais do pyiqa que o --no-deps abaixo
+# deixaria de fora. O avaliador de BOKEH nao as usava, entao a falta so apareceu
+# ao rodar o avaliador de DEBLUR (ModuleNotFoundError: einops, 2026-08-26).
+RUN python3 -m pip install --no-cache-dir -c /tmp/constraints.txt \
+        scikit-image \
+        opencv-python-headless \
+        lpips==0.1.4 \
+        timm \
+        ftfy \
+        regex \
+        pillow_heif \
+        einops \
+        openpyxl \
+        tabulate \
+        scipy
+
+# 2) pyiqa / CLIP / depth_pro com --no-deps: sao eles que puxam transformers.
+#    As dependencias reais deles (timm, ftfy, regex, scipy, opencv, lpips) ja
+#    foram instaladas acima ou vem da imagem base.
+RUN python3 -m pip install --no-cache-dir --no-deps \
+        pyiqa \
+        "git+https://github.com/openai/CLIP.git" \
+        "git+https://github.com/apple/ml-depth-pro.git"
+
+ENV TOKENIZERS_PARALLELISM=false
+ENV PYTHONUNBUFFERED=1
+WORKDIR /workspace/vision-pipeline

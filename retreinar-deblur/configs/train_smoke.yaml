@@ -1,0 +1,71 @@
+# SMOKE — valida o caminho inteiro antes de gastar cluster.
+#
+# PERGUNTA QUE RESPONDE: "o pipeline roda de ponta a ponta?"
+#   carrega FLUX, injeta LoRA (e a trava do C1 confere os 343 modulos),
+#   monta o batch, faz forward+backward, mexe os pesos, exporta safetensors.
+# NAO responde nada sobre qualidade. 3 steps nao treinam nada.
+#
+# RODA COM: sbatch slurm/smoke.slurm
+# Sem wandb e sem upload de proposito: smoke nao deve poluir o projeto do wandb
+# nem criar repo no HF.
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: true
+  expected_lora_modules: 343      # C1 — trava: aborta se voltar a injetar 344
+  deblur_train_guidance: 3.5      # C2
+  cond_train_guidance: 1.0
+  lora_on_main: false             # C8 — cond-only, igual a inferencia oficial
+
+runtime:
+  output_dir: outputs/smoke
+  seed: 42
+  num_workers: 2
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1  # smoke: 1 update por step, para ver mexer rapido
+  max_grad_norm: 1.0
+  log_every_steps: 1
+  save_every_steps: 1000000       # nao salva checkpoint no smoke
+  keep_last_n_checkpoints: 1
+  resume: false                   # smoke sempre comeca do zero
+  seed_per_rank: true             # C7
+  eval_every_steps: 0             # C10 — validacao desligada no smoke
+  save_best: false
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 2
+  min_lr_ratio: 0.1
+
+data:
+  deblur:
+    datasets:
+      - name: akcit-pixel/DDPD
+        split: train
+    val_datasets: []
+    steps: 3
+    batch_size: 1
+    image_size: 512
+    shuffle: false
+    max_samples: 4                # so 4 amostras: o smoke nao baixa o dataset todo
+    augment: false                # crop central deterministico
+    scale_mode: short_side        # C4 eixo 1 — controle
+    sigma_mu_source: crop         # C4 eixo 2 — controle
+    top_k_mode: row               # C5 — controle
+
+logging:
+  use_wandb: false
+  upload_every_steps: 0
+  upload_hf_repo_base: null
+  upload_final: false
+  upload_best: false

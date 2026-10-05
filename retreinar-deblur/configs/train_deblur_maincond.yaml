@@ -1,0 +1,151 @@
+# =============================================================================
+# DEBLURNET (Stage 1) — VARIANTE main+cond. NAO e o config principal.
+# =============================================================================
+#
+# ################  ATENCAO  ####################################################
+# #  O peso gerado por este config NAO roda no `Inference_deblurNet.py`        #
+# #  oficial como esta. A inferencia oficial chama `generate` com              #
+# #  `main_adapter=None`; com este peso isso produz saida LAVADA (foi medido:  #
+# #  LPIPS ~0.85). A inferencia TEM que passar `main_adapter="deblurring"`.    #
+# ###############################################################################
+#
+# POR QUE ESTE CONFIG EXISTE: o DeblurNet de 60k que o projeto ja avaliou
+# (LPIPS 0.1446 no DPDD) e desta familia — LoRA tambem no branch principal.
+# Ele fica aqui para que essa linhagem continue reproduzivel sob a arquitetura
+# corrigida (C1) e o warmup corrigido (C3). Para replicar o paper e rodar na
+# inferencia oficial sem parametro extra, use `train_deblur_paper.yaml`.
+#
+# RODA COM: TRAIN_CONFIG=configs/train_deblur_maincond.yaml sbatch slurm/train_deblur_4gpu.slurm
+#
+# Todo o resto (dados, rank, steps, batch efetivo, guidance, validacao, upload)
+# e IDENTICO ao train_deblur_paper.yaml. A unica diferenca e `lora_on_main`.
+# =============================================================================
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+
+  deblur_lora_rank: 128           # paper §4.1 ("DeblurNet employs LoRA rank r=128")
+  bokeh_lora_rank: 64             # paper §4.1 (nao usado neste config)
+  gradient_checkpointing: true    # false = ~30% mais rapido, mais VRAM
+
+  # C1 — trava de arquitetura. O checkpoint oficial tem 343 modulos LoRA
+  # (19 duplos x 6 + 38 single x 6 + x_embedder). Antes desta revisao
+  # injetavamos 344, porque a string solta "proj_out" capturava tambem a
+  # projecao final `transformer.proj_out`, que roda FORA do controle por branch
+  # do `specify_lora`. Se a contagem mudar, o treino aborta em vez de gerar um
+  # peso que nao e o do paper.
+  expected_lora_modules: 343
+
+  # C2 — guidance embutido no `temb`. NAO e CFG: o FLUX.1-dev e
+  # guidance-distilled e recebe esse escalar como ENTRADA do modelo.
+  # 3.5 e o que a inferencia oficial de deblur usa: `Inference_deblurNet.py` e
+  # `demo.py` chamam `generate()` SEM `guidance_scale`, e o default de
+  # `generate` em `Genfocus/pipeline/flux.py` e 3.5.
+  deblur_train_guidance: 3.5
+  bokeh_train_guidance: 1.0       # `Inference_bokehNet.py` passa guidance_scale=1.0
+  # A condicao recebe 1.0 nos dois estagios: `c_guidances = torch.ones` na
+  # inferencia oficial.
+  cond_train_guidance: 1.0
+
+  # C8 — main+cond: a LoRA age no branch principal ALEM das condicoes,
+  # dando adapters = [texto=None, main=LoRA, cond=LoRA].
+  # EXIGE `main_adapter="deblurring"` na inferencia. Ver o aviso no topo.
+  lora_on_main: true
+  # C6 — o treino NUNCA poe LoRA no branch de texto. Manter false.
+  lora_on_text: false
+
+runtime:
+  output_dir: outputs/deblur_maincond
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 8  # 1 x 8 x 4 GPUs = batch efetivo 32 (paper §4.1)
+  max_grad_norm: 1.0
+  log_every_steps: 10
+
+  # Checkpoint: nunca ficar horas sem salvar. Guarda os 5 ultimos + o melhor.
+  save_every_steps: 250
+  keep_last_n_checkpoints: 5
+  resume: true
+
+  # C7 — seed diferente por rank. Sem isto as 4 GPUs sorteiam o MESMO sigma e o
+  # MESMO ruido, e o batch efetivo 32 tem so 8 sigmas distintos.
+  seed_per_rank: true
+
+  # C10 — validacao com sigma e ruido FIXOS, para a metrica ser comparavel
+  # entre steps (a loss de treino de um micro-batch nao e sinal de nada).
+  eval_every_steps: 500
+  eval_max_samples: 32
+  eval_num_sigmas: 9
+  eval_seed: 1234
+  save_best: true
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4                      # nao especificado pelo paper
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine                    # nao especificado pelo paper
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  deblur:
+    datasets:
+      - name: akcit-pixel/DDPD
+        split: train                 # paper §B.1: "all images from the official
+                                     # training split of the DPDD dataset"
+      - name: akcit-pixel/RealBokeh
+        split: train
+        top_k_sharpest: 3000         # paper §B.1: "top 3,000 sharpest images"
+        sharpness_column: image_focus
+
+    val_datasets:
+      - name: akcit-pixel/DDPD
+        split: validation            # C10 — so para val_loss e escolha de checkpoint
+
+    steps: 60000                     # paper §4.1
+    batch_size: 1                    # paper §4.1
+    image_size: 512
+    shuffle: true
+    max_samples: null
+    augment: true                    # random crop + hflip sincronizado entre o par
+
+    # -------------------------------------------------------------------------
+    # Os tres campos abaixo MANTEM O COMPORTAMENTO ANTERIOR de proposito.
+    #
+    # Motivo: e com esta configuracao que o projeto ja chegou a LPIPS 0.1446 no
+    # DPDD, contra 0.1440 do paper (Tabela 2). Mudar qualquer um deles sem
+    # medir arriscaria perder esse resultado, e o paper NAO especifica
+    # resolucao de treino nem tamanho de crop — entao nao existe "o valor do
+    # paper" para copiar aqui.
+    #
+    # Os campos existem (e sao validados) para que a mudanca seja possivel
+    # depois, com medicao. O default nao muda agora.
+    # -------------------------------------------------------------------------
+    scale_mode: short_side           # lado MENOR -> 512, depois crop 512x512
+    sigma_mu_source: crop            # mu de calculate_shift(tokens do crop)
+    top_k_mode: row                  # leitura literal do §B.1: "By ranking the
+                                     # dataset based on this metric"
+    scene_key: auto                  # so tem efeito com top_k_mode: scene
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-deblurnet-v2
+  wandb_entity: null
+  run_name: deblur-maincond-60k
+  wandb_resume: true                 # re-sbatch continua o MESMO grafico
+  wandb_id: null                     # derivado do output_dir e persistido
+
+  upload_every_steps: 1000           # snapshot periodico: 1 repo, 1 arquivo por step
+  upload_hf_repo_base: genrefocus-deblurnet-v2-maincond
+  upload_final: true
+  upload_best: true
+  upload_private: true
+  upload_retries: 3

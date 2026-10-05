@@ -1,0 +1,27 @@
+# Saidas de treino e avaliacao
+outputs/
+logs/
+wandb/
+
+# Pesos: nunca no git. Vao para o HF (um arquivo por step).
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# Configs derivados por job (o .slurm gera um por SLURM_JOB_ID)
+configs/_efetivo_*.yaml
+
+# Segredos
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# SO
+.DS_Store
