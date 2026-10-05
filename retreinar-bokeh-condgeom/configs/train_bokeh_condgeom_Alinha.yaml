@@ -1,0 +1,201 @@
+# =============================================================================
+# CONDICAO A' — PERDA PONDERADA. 8.000 steps, h100n2, 1 GPU (SLURM).
+# =============================================================================
+#
+# MESMA ARVORE E MESMO CODIGO de A, B0 e B0linha — conferido em 01/10 arquivo a
+# arquivo: os 39 .py/.yaml de genfocus_train/, geocond/ e configs/ batem hash a
+# hash com a arvore que rodou os bracos na h100n3.
+#
+# Difere de A em UMA linha: `occlusion_lambda: 0.0` -> `1.0`.
+# Sem canais geometricos (`geo_condition: false`, `geo_branches: false`), como A.
+# Logo o par A/A' isola a PERDA PONDERADA sozinha, e e um par mais limpo que
+# B0/A: A e A' fazem cosine limpo de 8.000 do inicio, enquanto B0/B0linha
+# carregam o corte de 15.000->8.000 no meio do scheduler.
+#
+# POR QUE theta=0,9 E lambda=1,0, e nao o par que rodou na campanha v1:
+# o A' da v1 rodou com theta=0,0 / lambda=2,0, que da piso 0,806 — a
+# reponderacao financiou o topo cobrando de praticamente toda a imagem, e o
+# modelo piorou em toda parte (E_fora +31%). A tabela medida de piso
+# (`piso = 1/(1 + lambda*fracao)`) escolhe (0,9 / 1,0): piso 0,930, peso alto so
+# nos 7,5% de tokens que sao borda de verdade. O contraste cai de 3,0 para 2,0,
+# e esse e o preco.
+#
+# O QUE JULGA ESTE BRACO: `E_bleed`, nao a val loss. A borda e ~1,2% dos pixels,
+# entao metrica global dilui exatamente o que a perda ponderada mexe. Rodar
+# `geocond.jobs.ebleed_bench` em A e A' com o MESMO theta=0,9 do condicionamento.
+#
+# ATENCAO na comparacao com A: A usou `probe_every_steps: 2000` (4 pontos de
+# LVCorr) e os bracos B0/B0linha usaram 5.000 (1 ponto). Aqui fica 2.000, igual
+# a A, que e o par deste braco.
+# =============================================================================
+
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  max_coc: 100.0              # ASSERCAO do contrato, nao ajuste. Ver control.py.
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64         # §4.1
+  expected_lora_modules: 343  # C1 — trava; bokehNet.safetensors tem 686/2 = 343
+  bokeh_train_guidance: 1.0   # Inference_bokehNet.py passa guidance_scale=1.0
+  cond_train_guidance: 1.0    # flux.py: c_guidances = torch.ones
+  lora_on_main: false         # a inferencia oficial usa main_adapter=None
+  gradient_checkpointing: false  # sem branch extra, nao precisa   # OBRIGATORIO com o branch extra
+
+runtime:
+  output_dir: outputs/condgeom_fase1_Alinha
+  seed: 42
+  seed_per_rank: true         # C7
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 32   # 1 GPU x 32 = batch efetivo 32, igual a A e aos bracos
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250
+  keep_last_n_checkpoints: 1   # cada .pt e 2,78 GB (pesos + estado do AdamW).
+                               # `best.pt` e preservado a parte, entao manter 3
+                               # intermediarios so ocupa 5,6 GB por braco — e foi
+                               # disco cheio que matou estes dois no step 1730.
+  resume: true
+  # C10 — validacao deterministica
+  eval_every_steps: 500
+  eval_max_samples: 32
+  eval_num_sigmas: 9
+  eval_seed: 1234
+  save_best: true
+  # T11 — probe de controlabilidade. SEM ISTO o treino nao tem instrumento
+  # sensivel ao modo de falha que custou a fase 2 anterior.
+  probe_every_steps: 2000
+  # gere com: python3 scripts/build_probe_set.py --release <release> --out probe_set/
+  probe_set_dir: probe_set   # 8 imagens FIXAS, cenas DISJUNTAS do treino
+  probe_num_inference_steps: 28
+  probe_seed: 1234
+  probe_alerta_queda: 0.10
+  # perda ponderada LIGADA: este braco existe para medir exatamente isto.
+  # theta=0,9 + lambda=1,0 -> piso 0,930 (a v1 rodou 0,0/2,0 -> piso 0,806).
+  occlusion_lambda: 1.0
+  occlusion_theta: 0.9
+  occlusion_pool: max
+  geo_branches: false
+
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  # O bloco `deblur` nao e usado por este run, mas o schema exige um. Aponta
+  # para as fontes do paper e nunca e carregado (o stage e "bokeh").
+  deblur:
+    datasets:
+      - {name: akcit-pixel/DDPD, split: train}
+    steps: 60000
+  bokeh:
+    datasets:
+      # O release da rota A, LIDO DO DISCO (o prefetch o deixa aqui). Caminho e
+      # nao repo do Hub de proposito: `permitir_download_do_release: false` e o
+      # default, e ha registro de 552 GB de egress inexplicado neste projeto.
+      #   sbatch slurm/prefetch_rota_a_h100n3.slurm
+      - {name: /raid/user_juliadollis/releases-bokeh/rota_a_pareado, split: train}
+    val_datasets:
+      # MESMO release: a fronteira entre treino e validacao e a PARTICAO POR
+      # CENA do `split.json` materializado, nao a fonte.
+      - {name: /raid/user_juliadollis/releases-bokeh/rota_a_pareado, split: train}
+    steps: 8000
+                                # de GPU. Compara-se no MESMO step contra o
+                                # checkpoint 15.000 da n1. So a vencedora vai a 40K.
+    batch_size: 1
+    image_size: 512                 # = TILE_SIZE da inferencia (32 tokens x 16 px)
+    shuffle: true
+    augment: true
+
+    # ── contrato do sinal de controle ────────────────────────────────────────
+    defocus_source: metric_disparity
+
+    # ── CONDICIONAMENTO GEOMETRICO ─────────────────────────────────────
+    geo_condition: false   # <-- A UNICA diferenca para o B0
+    geo_field: inverse
+    geo_ruido_controle: false
+    # MEDIDAS em 300 amostras do split de TREINO deste release
+    # (geocond.jobs.calibrar, job 33054). Saturacao resultante:
+    # O 0,50% · u 0,10% · s 0,50% dos pixels. As da campanha antiga
+    # NAO servem: outra unidade, outra distribuicao.
+    geo_constantes:
+      tau_occlusion: 31.6492716484736
+      u_max: 3.599870971102308
+      s_max: 3.455214049844166
+      k0_curvature: 1.0
+      kt_max: 8.0
+      smooth_sigma: 2.0
+      min_niveis_para_segunda_ordem: 256
+
+    require_valid_for_control: true
+    exclude_censored_k: true
+    # DECISAO NOSSA (A8), nao literal do paper — ver o cabecalho.
+    max_levels_per_scene: 4
+    # Split POR CENA, lido de manifesto. Sorteado no dataloader ele muda a cada
+    # run e "o benchmark esta fora do treino" deixa de ser verificavel.
+    # o proprio release materializa o split por cena em `split.json`
+    scene_split_manifest: null
+    scene_split_partition: train
+    # ── L1: a FORMA do release (ver genfocus_train/release.py) ──────────────
+    # O `bokehnet-regen` publica uma ARVORE DE ARQUIVOS (manifest.jsonl,
+    # depth/<id>.png, meta/<id>.json, split.json), nao uma tabela com os pixels
+    # nas colunas. `auto` decide pelo que da para ver SEM REDE (pasta local com
+    # manifest.jsonl, ou snapshot ja em disco); um repo do Hub do release exige
+    # `arvore` declarado aqui.
+    release_format: arvore
+    # Espelho de origem, `source_dataset` -> diretorio do snapshot local. So e
+    # preciso quando o release NAO e autocontido: por decisao de cota (365 GB
+    # contra 115 GB livres) a rota C referencia AIF e bokeh, a B referencia a
+    # bokeh e a A referencia a AIF. Se o release sair com --store-source-images,
+    # deixe null. PREENCHER conforme a decisao do time de dados.
+    #   mirror_roots:
+    #     akcit-pixel/RealBokeh: /caminho/do/snapshot
+    # Espelho de ORIGEM. A rota A nao e autocontida: `generated/` traz o ALVO
+    # (o bokeh que nos renderizamos), mas a AIF e REFERENCIA — por decisao de
+    # cota, e o sha256 em `source_images.jsonl` e o que torna o join uma
+    # evidencia em vez de uma afirmacao. Sem isto o `check` falha alto, que e o
+    # comportamento certo: melhor no minuto 0 que no step 8.000.
+    mirror_roots:
+      "EBB!": /raid/user_juliadollis/fontes-bokeh/EBB
+      GenerativePhotography: /raid/user_juliadollis/fontes-bokeh/GenerativePhotography
+    # Baixar release/espelho do Hub. Default false, e e decisao declarada: uma
+    # auditoria deste projeto mediu 552 GB de egress inexplicado vindo de
+    # download automatico. Ler do disco e o default; baixar se pede.
+    permitir_download_do_release: false
+    # sha256 dos bytes de origem conferido contra source_images.jsonl. E o que
+    # faz do join com o espelho uma evidencia em vez de uma afirmacao.
+    verificar_sha256_da_origem: true
+    # A rota A e uma fonte so; peso nao se aplica. Na fase 2 sim.
+    route_weights: null
+    min_calibration_ssim: null      # a rota A nao tem sweep da Eq. 5
+
+    # ── eixos C4 ────────────────────────────────────────────────────────────
+    # `full_image`: a inferencia tira o mu do image_seq_len da imagem INTEIRA,
+    # antes do tiling (flux.py:624). Ver T13.
+    sigma_mu_source: full_image
+    # `short_side` mantido como default. `native` casa a escala de pixel com a
+    # inferencia mas faz o crop de 512 cobrir 1/12 do quadro de uma foto 3MP,
+    # com pouca variacao de profundidade dentro do crop. E um A/B a medir com o
+    # probe, nao uma correcao obvia. Ver T14.
+    scale_mode: short_side
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-bokehnet-v2
+  run_name: condgeom-fase1-Alinha-perda-ponderada
+  wandb_resume: true
+  upload_every_steps: 1000
+  upload_hf_repo_base: juliadollis/genrefocus-condgeom-fase1-Alinha
+  upload_final: true
+  upload_best: true
+  upload_private: true

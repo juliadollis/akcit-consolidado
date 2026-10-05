@@ -1,0 +1,88 @@
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  expected_lora_modules: 343
+  bokeh_train_guidance: 1.0
+  cond_train_guidance: 1.0
+  lora_on_main: false
+  gradient_checkpointing: false
+runtime:
+  output_dir: outputs/bokeh_fase1_rota_a
+  seed: 42
+  seed_per_rank: true
+  num_workers: 8
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 8
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250
+  keep_last_n_checkpoints: 5
+  resume: true
+  eval_every_steps: 500
+  eval_max_samples: 32
+  eval_num_sigmas: 9
+  eval_seed: 1234
+  save_best: true
+  probe_every_steps: 0
+  probe_set_dir: null
+  probe_num_inference_steps: 28
+  probe_seed: 1234
+  probe_alerta_queda: 0.1
+optimizer:
+  name: adamw
+  lr: 0.0001
+  weight_decay: 0.0001
+  betas:
+  - 0.9
+  - 0.999
+  eps: 1.0e-08
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+data:
+  deblur:
+    datasets:
+    - name: akcit-pixel/DDPD
+      split: train
+    steps: 60000
+  bokeh:
+    datasets:
+    - name: /workspace/releases/rota_a
+      split: train
+    val_datasets:
+    - name: /workspace/releases/rota_a
+      split: train
+    steps: 40000
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+    augment: true
+    defocus_source: metric_disparity
+    require_valid_for_control: true
+    exclude_censored_k: true
+    max_levels_per_scene: null
+    scene_split_manifest: null
+    scene_split_partition: train
+    release_format: arvore
+    mirror_roots:
+      EBB!: /workspace/fontes_rota_a/EBB
+    permitir_download_do_release: false
+    verificar_sha256_da_origem: true
+    route_weights: null
+    min_calibration_ssim: null
+    sigma_mu_source: full_image
+    scale_mode: short_side
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-bokehnet-v2
+  run_name: bokeh-fase1-rota-a-h100n1
+  wandb_resume: true
+  upload_every_steps: 1000
+  upload_hf_repo_base: juliadollis/genrefocus-bokehnet-v2-fase1
+  upload_final: true
+  upload_best: true
+  upload_private: true

@@ -1,0 +1,111 @@
+# GERADO em 2026-09-25 para verificar o codigo depois das correcoes.
+# Dado REAL e guardas identicas as da fase 1; 6 steps, sem upload.
+model:
+  # SNAPSHOT LOCAL, não o repo-id. Com o repo-id o diffusers vai pelo
+  # `hf_hub_download`, que precisa ESCREVER em `blobs/` — e o diretório do FLUX
+  # nesta máquina é root-owned, de uma rodada antiga sem `--user`. Dois
+  # lançamentos morreram assim em 2026-09-25:
+  #   FileNotFoundError: .../models--black-forest-labs--FLUX.1-dev/blobs
+  # Além disso, repo-id que funciona BAIXA — e a regra do projeto é não baixar.
+  # O treino agora recusa um caminho que não seja diretório local.
+  # Sobrescreva com FLUX_PATH=... se o snapshot estiver em outro lugar.
+  pretrained_model_name_or_path: /workspace/hf-cache/hub/models--black-forest-labs--FLUX.1-dev/snapshots/3de623fc3c33e44ffbe2bad470d0f45bccf2eb21
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  expected_lora_modules: 343
+  bokeh_train_guidance: 1.0
+  cond_train_guidance: 1.0
+  lora_on_main: false
+  gradient_checkpointing: false
+runtime:
+  output_dir: outputs/_verificacao_codigo
+  seed: 42
+  seed_per_rank: true
+  num_workers: 8
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 8
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 3
+  keep_last_n_checkpoints: 5
+  resume: true
+  eval_every_steps: 3
+  eval_max_samples: 4
+  eval_num_sigmas: 9
+  eval_seed: 1234
+  save_best: true
+  probe_every_steps: 0
+  probe_set_dir: null
+  probe_num_inference_steps: 28
+  probe_seed: 1234
+  probe_alerta_queda: 0.1
+optimizer:
+  name: adamw
+  lr: 0.0001
+  weight_decay: 0.0001
+  betas:
+  - 0.9
+  - 0.999
+  eps: 1.0e-08
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+data:
+  deblur:
+    datasets:
+    - name: akcit-pixel/DDPD
+      split: train
+    steps: 60000
+  bokeh:
+    # O QUE DE FATO RODOU na fase 1 de 40K steps (ver
+    # outputs/bokeh_fase1_1700cenas/effective_config.yaml): o sub-release por
+    # SYMLINK das cenas completas, montado por scripts/valida_rota_a_parcial.py
+    # enquanto o download dos 210.809 arquivos terminava. São as mesmas 1.700
+    # cenas / 69.700 amostras de `/workspace/releases/rota_a`, que hoje está
+    # completo — mas o config tem de registrar o que rodou, não o equivalente.
+    datasets:
+    - name: /workspace/retreinar-bokeh/fase1_dados/parcial
+      split: train
+    # A partição é forçada a "val" em `_build_val_loader`: mesmo release, 20%
+    # das cenas, disjuntas POR CENA das 80% do treino.
+    val_datasets:
+    - name: /workspace/retreinar-bokeh/fase1_dados/parcial
+      split: train
+    steps: 6
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+    augment: true
+    defocus_source: metric_disparity
+    require_valid_for_control: true
+    exclude_censored_k: true
+    max_levels_per_scene: null
+    scene_split_manifest: null
+    scene_split_partition: train
+    release_format: arvore
+    # AS DUAS fontes do §4.1. Faltando a segunda, o loader levanta
+    # `ReleaseError` na primeira amostra que a referencia — e foi assim que um
+    # lançamento morreu. Ele falha alto em vez de adivinhar, que é o certo; o
+    # config é que estava incompleto.
+    mirror_roots:
+      EBB!: /workspace/fontes_rota_a/EBB
+      GenerativePhotography: /workspace/fontes_rota_a/GenerativePhotography
+    permitir_download_do_release: false
+    verificar_sha256_da_origem: true
+    route_weights: null
+    min_calibration_ssim: null
+    sigma_mu_source: full_image
+    scale_mode: short_side
+logging:
+  use_wandb: false
+  wandb_project: genrefocus-bokehnet-v2
+  run_name: verificacao-codigo
+  wandb_resume: true
+  upload_every_steps: 0
+  upload_hf_repo_base: juliadollis/genrefocus-bokehnet-v2-fase1
+  upload_final: false
+  upload_best: false
+  upload_private: true

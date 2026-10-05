@@ -1,0 +1,204 @@
+# =============================================================================
+# BOKEHNET (Stage 2) — FASE 2: DADOS REAIS. 60K steps. BRACO PRIMARIO.
+# =============================================================================
+#
+# RODA COM:  sbatch slurm/train_bokeh_fase2_4gpu.slurm
+#            (o slurm passa --init-lora outputs/bokeh_fase1_synth)
+#
+# BRACO C — REPLAY SINTETICO NA FASE 2. DESVIO DECLARADO DO PAPER.
+#
+# O §4.1 e literal: "(ii) 60K steps on real data". Este braco NAO e isso: 15%
+# dos batches vem da rota A. Esta escrito aqui e vai escrito no texto.
+#
+# HIPOTESE (T16): o dado sintetico e a UNICA fonte com variacao densa e limpa de
+# K por cena — e dele que veio LVCorr +0,9059. As rotas reais tem 2 a 4 niveis
+# por cena, e a rota B tem UM (o K vem da EXIF de uma foto so). Uma fase de 60K
+# steps sem nenhum exemplo de "mesma cena, K diferente" e o cenario classico de
+# esquecimento do controle.
+#
+# CRITERIO DE DECISAO, declarado ANTES de rodar: se o LVCorr voltar para perto
+# de +0,88 SEM perder mais de 5% de LPIPS contra o braco primario, e um achado
+# NOSSO e vai para o texto como desvio. Se nao, a leitura literal do paper fica
+# confirmada por medicao — o que tambem vale.
+#
+# -----------------------------------------------------------------------------
+# FIEL AO PAPER (conferido literal no PDF)
+# -----------------------------------------------------------------------------
+# §4.1: "BokehNet uses r=64 ... Both models are trained with a per-GPU batch
+#        size of 1 and gradient accumulation over 8 steps on 4x RTX A6000 GPUs.
+#        BokehNet is trained in two stages: (i) 40K steps on synthetic data,
+#        and (ii) 60K steps on real data."
+#   -> bokeh_lora_rank 64, batch_size 1, grad_accum 8, 4 GPUs, steps 40000.
+# §3.2(b): ITW — foto de bokeh REAL como entrada, AIF extraida pela DeblurNet,
+#        K pela Eq. 3 a partir da EXIF. E a rota B.
+# §3.2(c): LFDOF + RealBokeh — pares reais, K pelo sweep de SSIM da Eq. 5, com
+#        limiar de SSIM. E a rota C.
+#   -> as duas na fase 2. A rota A NAO entra (leitura literal do §4.1).
+# §3.2: prompt e condicionamento conferidos contra Inference_bokehNet.py.
+#
+# -----------------------------------------------------------------------------
+# NAO ESPECIFICADO PELO PAPER — escolha nossa, declarada
+# -----------------------------------------------------------------------------
+# Optimizer, lr, scheduler, warmup, weight decay, precisao, resolucao de treino,
+# crop, e a distribuicao de onde a rota A sorteia K. Os valores abaixo sao os
+# mesmos do DeblurNet, pelo mesmo motivo: nao mudar duas coisas de uma vez.
+#
+# -----------------------------------------------------------------------------
+# O QUE MUDOU EM RELACAO AO TREINO ANTERIOR (AUDITORIA_TREINO_BOKEHNET.md)
+# -----------------------------------------------------------------------------
+#   T1  defocus_source: metric_disparity (contrato do release novo)
+#   T2  o K passa a ser reescalado pelo fator de resize do crop
+#   T3  profundidade reamostrada com NEAREST, como na geracao
+#   T4  max_coc deixou de ser ajustavel (asserta 100.0)
+#   T6  val_datasets com split POR CENA
+#   T7  filtros is_valid_for_control / is_k_censored
+#   T9  teto de 4 niveis por cena — DECISAO NOSSA (A8), nao do paper: o
+#       supplement B.2 descreve a composicao do dado dos AUTORES, nao um
+#       filtro para as outras rotas. Motivo: 25% das amostras vinham de
+#       6,2% das cenas.
+#   T11 probe de LVCorr a cada 5000 steps
+#   T13 sigma_mu_source: full_image (o que a inferencia faz)
+# =============================================================================
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  max_coc: 100.0              # ASSERCAO do contrato, nao ajuste. Ver control.py.
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64         # §4.1
+  expected_lora_modules: 343  # C1 — trava; bokehNet.safetensors tem 686/2 = 343
+  bokeh_train_guidance: 1.0   # Inference_bokehNet.py passa guidance_scale=1.0
+  cond_train_guidance: 1.0    # flux.py: c_guidances = torch.ones
+  lora_on_main: false         # a inferencia oficial usa main_adapter=None
+  gradient_checkpointing: false
+
+runtime:
+  output_dir: outputs/bokeh_fase2_replay
+  seed: 42
+  seed_per_rank: true         # C7
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 8    # 1 x 8 x 4 GPUs = batch efetivo 32 (§4.1)
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250
+  keep_last_n_checkpoints: 5
+  resume: true
+  # C10 — validacao deterministica
+  eval_every_steps: 500
+  eval_max_samples: 32
+  eval_num_sigmas: 9
+  eval_seed: 1234
+  save_best: true
+  # T11 — probe de controlabilidade. SEM ISTO o treino nao tem instrumento
+  # sensivel ao modo de falha que custou a fase 2 anterior.
+  probe_every_steps: 5000
+  probe_set_dir: null         # PREENCHER: scripts/build_probe_set.py
+  probe_num_inference_steps: 28
+  probe_seed: 1234
+  probe_alerta_queda: 0.10
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  # O bloco `deblur` nao e usado por este run, mas o schema exige um. Aponta
+  # para as fontes do paper e nunca e carregado (o stage e "bokeh").
+  deblur:
+    datasets:
+      - {name: akcit-pixel/DDPD, split: train}
+    steps: 60000
+  bokeh:
+    datasets:
+      # PREENCHER com os repos dos releases das ROTAS B e C. Nome invalido de
+      # proposito: um repo antigo aqui treinaria na convencao velha em silencio.
+      - {name: PREENCHER/release-rota-b, split: train}   # ~ITW (§3.2(b))
+      - {name: PREENCHER/release-rota-c, split: train}   # LFDOF + RealBokeh (§3.2(c))
+    val_datasets:
+      - {name: PREENCHER/release-rota-c, split: train}
+    steps: 60000                    # §4.1 fase (ii)
+    batch_size: 1
+    image_size: 512                 # = TILE_SIZE da inferencia (32 tokens x 16 px)
+    shuffle: true
+    augment: true
+
+    # ── contrato do sinal de controle ────────────────────────────────────────
+    defocus_source: metric_disparity
+    require_valid_for_control: true
+    exclude_censored_k: true
+    # DECISAO NOSSA (A8), nao literal do paper — ver o cabecalho.
+    max_levels_per_scene: 4
+    # Split POR CENA, lido de manifesto. Sorteado no dataloader ele muda a cada
+    # run e "o benchmark esta fora do treino" deixa de ser verificavel.
+    scene_split_manifest: null      # PREENCHER: manifests/split_<release>.jsonl
+    scene_split_partition: train
+    # ── L1: a FORMA do release (ver genfocus_train/release.py) ──────────────
+    # O `bokehnet-regen` publica uma ARVORE DE ARQUIVOS (manifest.jsonl,
+    # depth/<id>.png, meta/<id>.json, split.json), nao uma tabela com os pixels
+    # nas colunas. `auto` decide pelo que da para ver SEM REDE (pasta local com
+    # manifest.jsonl, ou snapshot ja em disco); um repo do Hub do release exige
+    # `arvore` declarado aqui.
+    release_format: auto
+    # Espelho de origem, `source_dataset` -> diretorio do snapshot local. So e
+    # preciso quando o release NAO e autocontido: por decisao de cota (365 GB
+    # contra 115 GB livres) a rota C referencia AIF e bokeh, a B referencia a
+    # bokeh e a A referencia a AIF. Se o release sair com --store-source-images,
+    # deixe null. PREENCHER conforme a decisao do time de dados.
+    #   mirror_roots:
+    #     akcit-pixel/RealBokeh: /caminho/do/snapshot
+    mirror_roots: null
+    # Baixar release/espelho do Hub. Default false, e e decisao declarada: uma
+    # auditoria deste projeto mediu 552 GB de egress inexplicado vindo de
+    # download automatico. Ler do disco e o default; baixar se pede.
+    permitir_download_do_release: false
+    # sha256 dos bytes de origem conferido contra source_images.jsonl. E o que
+    # faz do join com o espelho uma evidencia em vez de uma afirmacao.
+    verificar_sha256_da_origem: true
+    # T10 — a proporcao entre rotas era ACIDENTE (tamanho relativo dos shards).
+    # B e C ocupam faixas de defocus diferentes por fisica ([0,0.05] x [0,0.4]) e
+    # ensinam coisas diferentes: B ensina aparencia optica real com AIF vinda da
+    # DeblurNet (a distribuicao da inferencia); C ensina variacao de K DENTRO da
+    # cena, que e o controle. Deixado null (= proporcional) para nao mudar duas
+    # coisas de uma vez, mas as contagens por rota vao para o log e para o
+    # run_metadata. Preencher depois de medir.
+    route_weights: null
+    # BRACO C — o desvio. 0.0 no braco primario.
+    synthetic_replay_fraction: 0.15
+    synthetic_replay_datasets:
+      - {name: PREENCHER/release-rota-a, split: train}
+    # §3.2(c), literal: "provided that its corresponding SSIM exceeds a
+    # predefined threshold". O paper NAO publica o valor. O 0.6 do treino
+    # anterior foi calibrado na distribuicao ANTIGA, gerada com um renderer que
+    # nunca era o BokehMe e com o K na convencao errada — nao vale. PREENCHER
+    # com o percentil escolhido sobre a distribuicao NOVA. Ver T8.
+    min_calibration_ssim: null
+
+    # ── eixos C4 ────────────────────────────────────────────────────────────
+    # `full_image`: a inferencia tira o mu do image_seq_len da imagem INTEIRA,
+    # antes do tiling (flux.py:624). Ver T13.
+    sigma_mu_source: full_image
+    # `short_side` mantido como default. `native` casa a escala de pixel com a
+    # inferencia mas faz o crop de 512 cobrir 1/12 do quadro de uma foto 3MP,
+    # com pouca variacao de profundidade dentro do crop. E um A/B a medir com o
+    # probe, nao uma correcao obvia. Ver T14.
+    scale_mode: short_side
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-bokehnet-v2
+  run_name: bokeh-fase2-replay15
+  wandb_resume: true
+  upload_every_steps: 1000
+  upload_hf_repo_base: PREENCHER/genrefocus-bokehnet-v2-fase2-replay
+  upload_final: true
+  upload_best: true
+  upload_private: true

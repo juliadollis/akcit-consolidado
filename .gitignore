@@ -5,3 +5,12 @@ __pycache__/
 .venv/
 venv/
 .env
+
+# saídas de treino e pesos — vão para o HF, nunca para o git
+outputs/
+logs/
+wandb/
+*.safetensors
+*.pt
+*.pth
+*.ckpt
