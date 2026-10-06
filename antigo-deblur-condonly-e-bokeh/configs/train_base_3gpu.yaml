@@ -1,0 +1,59 @@
+# DeblurNet (Stage 1) — TREINO DO PAPER em 3 GPUs (ex.: Docker no dgx-H100-01,
+# GPUs 3,4,5 livres). GC off (mais rápido; valida em ~59GB/80GB por GPU).
+#
+# Batch efetivo = batch_size(1) × gradient_accumulation_steps(11) × num_gpus(3) = 33
+#   (~32 do paper; 32 não divide por 3 com inteiro, 33 é o mais próximo).
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: false      # GC off (cabe — teste 2-GPU usou ~59GB/80GB)
+
+runtime:
+  output_dir: outputs/deblurnet_paper_3gpu_condlora
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 11    # 1 × 11 × 3 GPUs = batch efetivo 33
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250
+  keep_last_n_checkpoints: 5
+  resume: true
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  deblur:
+    datasets:
+      - name: akcit-pixel/DDPD
+        split: train
+      - name: akcit-pixel/RealBokeh
+        split: train
+        top_k_sharpest: 3000
+        sharpness_column: image_focus
+    steps: 60000
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-deblurnet
+  wandb_entity: null
+  run_name: deblurnet-paper-3gpu-condlora

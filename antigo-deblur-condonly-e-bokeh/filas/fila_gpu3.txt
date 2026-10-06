@@ -1,0 +1,14 @@
+# A2 — checkpoint intermediario: 20000 (a fase 2 saturou antes dos 60K?)
+step20000|--lora-repo juliadollis/genrefocus-bokehnet-fase2-real --lora-file bokeh_step20000.safetensors --nome nosso-fase2-step20000 --saida juliadollis/bokeh-eval-infer-step20000 --limite 20 --long-side 512 --lote 10
+# A2 — checkpoint intermediario: 40000
+step40000|--lora-repo juliadollis/genrefocus-bokehnet-fase2-real --lora-file bokeh_step40000.safetensors --nome nosso-fase2-step40000 --saida juliadollis/bokeh-eval-infer-step40000 --limite 20 --long-side 512 --lote 10
+# A3 — RealDOF com o peso OFICIAL do paper (comparacao justa no mesmo dado)
+realdof-oficial|--lora-repo nycu-cplab/Genfocus-Model --lora-file bokehNet.safetensors --nome oficial-paper-RealDOF --saida juliadollis/bokeh-eval-infer-oficial-realdof --dataset-entrada akcit-pixel/RealDOF --limite 20 --long-side 512 --lote 10
+# --- acrescentado 2026-08-19: escala de K corrigida + RealDOF completo ---
+kesc-step40000|--lora-repo juliadollis/genrefocus-bokehnet-fase2-real --lora-file bokeh_step40000.safetensors --nome nosso-step40000-kesc --saida juliadollis/bokeh-eval-infer-step40000-kesc --limite 20 --long-side 512 --lote 10 --k-escala 0.01
+realdof-nosso-kesc|--lora-repo juliadollis/genrefocus-bokehnet-fase2-real --lora-file bokeh.safetensors --nome nosso-fase2-RealDOF-kesc --saida juliadollis/bokeh-eval-infer-nosso-realdof --dataset-entrada akcit-pixel/RealDOF --limite 20 --long-side 512 --lote 10 --k-escala 0.01
+ddpd73-oficial|--lora-repo nycu-cplab/Genfocus-Model --lora-file bokehNet.safetensors --nome oficial-paper-DDPD73 --saida juliadollis/bokeh-eval-infer-oficial-ddpd73 --limite 0 --long-side 512 --lote 10 --k-escala 0.01
+# --- 2026-08-20: reproducao da TABELA 2 (a unica comparavel ao publicado) ---
+# NOTA: estes itens usam run_tabela2.py, nao run_3models.py. O keeper chama
+# run_3models.py, entao eles NAO entram por aqui — ficam registrados como
+# documentacao do que foi rodado a parte (ver scripts/fila_tabela2.sh).

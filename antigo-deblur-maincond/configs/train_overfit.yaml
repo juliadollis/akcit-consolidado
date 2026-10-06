@@ -1,0 +1,70 @@
+# Teste de OVERFIT da DeblurNet — NÃO é o treino do paper.
+#
+# Objetivo: provar que o pipeline real (FLUX + LoRA + transformer_forward) roda
+# de ponta a ponta sem erro numa H100, e que a LOSS CAI quando o modelo só
+# precisa decorar pouquíssimas amostras. Se a loss_ema não cair aqui, há bug —
+# não adianta gastar 60K steps.
+#
+# Como força o overfit:
+#   - data.deblur.max_samples: 4   → o dataset inteiro são 4 pares (blurry, AIF).
+#   - data.deblur.augment: false   → center crop determinístico, sem flip.
+#     (cada época vê EXATAMENTE os mesmos 4 tensores → dá pra decorar.)
+#   - data.deblur.shuffle: false   → ordem fixa.
+#   - gradient_accumulation_steps: 1 → cada step é um update real (overfit rápido).
+#   - lr maior (2e-4) e sem weight_decay → memoriza mais rápido.
+#
+# O que observar no Wandb: a curva `deblur/loss_ema` deve cair de forma clara e
+# consistente ao longo dos ~400 steps (a `deblur/loss` crua é ruidosa — normal
+# em flow matching, ignore o serrilhado). best_loss deve ficar bem baixo.
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: true
+
+runtime:
+  output_dir: outputs/overfit
+  seed: 42
+  num_workers: 2
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1   # overfit: cada step = 1 update real
+  max_grad_norm: 1.0
+  log_every_steps: 1               # log a cada step (queremos ver a curva fina)
+  save_every_steps: 200
+  keep_last_n_checkpoints: 2
+  resume: false                    # overfit começa sempre do zero
+
+optimizer:
+  name: adamw
+  lr: 2.0e-4                       # > 1e-4 do paper: memoriza mais rápido
+  weight_decay: 0.0                # sem regularização: queremos decorar
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 10
+  min_lr_ratio: 0.1
+
+data:
+  deblur:
+    datasets:
+      - name: akcit-pixel/DDPD
+        split: train
+    steps: 400
+    batch_size: 1
+    image_size: 512
+    shuffle: false
+    max_samples: 4                 # <<< só 4 pares no dataset inteiro
+    augment: false                 # <<< center crop fixo, sem flip → reprodutível
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-deblurnet-overfit
+  wandb_entity: null
+  run_name: overfit-4samples

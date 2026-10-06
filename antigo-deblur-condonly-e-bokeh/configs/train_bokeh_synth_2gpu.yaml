@@ -1,0 +1,80 @@
+# BokehNet (Stage 2) — FASE 1: DADOS SINTÉTICOS, 2 GPUs.
+#
+# Currículo do paper §4.1 (citação literal): "BokehNet is trained in two
+# stages: (i) 40K steps on synthetic data, and (ii) 60K steps on real data."
+# Esta é a FASE 1 (40K sintético).
+#   sintético = SÓ rota a (render puro via BokehMe, K/S1 sorteados). A rota b
+#   (Flickr) NÃO entra aqui — confirmado no README do bokehnet-data-pipeline
+#   (github.com/AKCIT-PIXEL/bokehnet-data-pipeline) que ela é "(b) real
+#   unpaired COM EXIF", ou seja, dado REAL (análogo ao ITW do paper), e por
+#   isso foi realocada para a FASE 2 (train_bokeh_real_2gpu.yaml). Antes deste
+#   fix, a rota b estava (erroneamente) agrupada aqui como "sintética".
+# Depois rode a FASE 2 (train_bokeh_real_2gpu.yaml) com --init-lora apontando pro
+# output_dir desta fase.
+#
+# rank 64; batch efetivo 32 = 1 (per-gpu) × 16 (accum) × 2 (gpus).
+# 2 condições: AIF ([-1,1]) + defocus_map ([0,1]), este RECOMPOSTO de depth+k+s1
+# (defocus_source: recompute, ver o comentário na seção data) — NÃO a coluna
+# `defocus_map` do df, que está quebrada.
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: false
+
+runtime:
+  output_dir: outputs/bokehnet_synth_2gpu
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 16     # 1 × 16 × 2 GPUs = batch efetivo 32
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250
+  keep_last_n_checkpoints: 5
+  resume: true
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  bokeh:
+    datasets:
+      # Rota a LOCAL: 341.6 GB no hub nao cabem na cota de 500 GB do cluster.
+      # scripts/prefetch_bokeh_local.py (streaming, roda no login node, sem
+      # fila, resumivel) salva a versao lado-menor-512 nesta pasta — mesma
+      # formula de resize do dataloader, treino bit-a-bit identico.
+      - name: /workspace/data-bokeh/rota_a
+        split: train                            # ignorado para fontes locais
+    steps: 40000                          # FASE 1: 40K sintético (paper §4.1)
+    # Mapa de defocus: RECOMPOSTO de depth+k+s1 com clip(k*|D-s1|/max_coc,0,1),
+    # a formula da inferencia oficial. NAO usamos a coluna `defocus_map` do df:
+    # ela foi salva normalizada POR IMAGEM (dm/dm.max()), o que apaga o k e
+    # treinaria um modelo sem controle de bokeh. Ver DEFOCUS_SOURCES em data.py.
+    # Use "column" apenas para comparar com o comportamento antigo.
+    defocus_source: recompute
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-bokehnet
+  wandb_entity: null
+  run_name: bokehnet-synth-2gpu
+  upload_every_steps: 2500
+  upload_hf_repo_base: genrefocus-bokehnet-synth-condlora

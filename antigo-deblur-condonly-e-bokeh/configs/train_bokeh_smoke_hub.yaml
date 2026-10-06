@@ -1,0 +1,82 @@
+# Smoke test do BokehNet lendo do HUB (rota c), para a dgx-H100-01 (DOCKER).
+#
+# POR QUE EXISTE UM SMOKE SEPARADO
+# O `train_bokeh_smoke.yaml` aponta para /workspace/data-bokeh/rota_a, a pasta
+# do prefetch que so existe no /raid da H100-02 (o /raid e local por no). Na
+# H100-01 essa pasta NAO existe, entao aquele smoke falharia por falta de dado,
+# nao por bug de codigo.
+#
+# Este aqui le a ROTA C do hub, que e exatamente uma das fontes da FASE 2
+# (train_bokeh_real_4gpu.yaml = rotas b + c). Alem de validar o caminho de 2
+# condicoes, ele AQUECE O CACHE: o download da rota c serve para o treino real
+# logo em seguida.
+#
+# O que este smoke valida antes de gastar 60K steps:
+#   - imagem docker + versoes (o docker/verify_env.py roda antes, no bootstrap);
+#   - download/leitura do hub dentro do container, com o cache montado;
+#   - defocus RECOMPOSTO a partir de depth+k+s1 nas colunas do df da rota c;
+#   - forward de 2 condicoes (AIF + defocus) com o group_mask correto;
+#   - que os pesos LoRA de fato mudam (param diff > 0).
+#
+# rank 16 e 256 para ser rapido; o group_mask e o caminho de dados independem do
+# rank. wandb/resume off.
+#
+# Uso (dentro do container, 1 GPU):
+#   RUN_SMOKE=1 TRAIN_CONFIG=configs/train_bokeh_smoke_hub.yaml \
+#     bash scripts/run_bokeh_docker.sh
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  max_coc: 100.0
+  deblur_lora_rank: 16
+  bokeh_lora_rank: 16
+  gradient_checkpointing: true
+
+runtime:
+  output_dir: outputs/smoke_bokeh_hub
+  seed: 42
+  num_workers: 0
+  pin_memory: false
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+  log_every_steps: 1
+  save_every_steps: 1
+  keep_last_n_checkpoints: 1
+  resume: false
+
+optimizer:
+  name: adamw
+  lr: 5.0e-4
+  weight_decay: 0.0
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 0
+  min_lr_ratio: 0.1
+
+data:
+  bokeh:
+    datasets:
+      # SO a rota c (a menor das duas fontes reais). A rota b tem 42 GB e nao
+      # precisa entrar num smoke — ela sera baixada quando a fase 2 subir.
+      - name: AKCITPixel3/CMiQdveBBzNii   # rota c (RealBokeh_3MP/LFDOF, pares reais)
+        split: train
+    steps: 3
+    # Mapa de defocus: RECOMPOSTO de depth+k+s1 com clip(k*|D-s1|/max_coc,0,1),
+    # a formula da inferencia oficial. NAO usamos a coluna `defocus_map` do df:
+    # ela foi salva normalizada POR IMAGEM (dm/dm.max()), o que apaga o k e
+    # treinaria um modelo sem controle de bokeh. Ver DEFOCUS_SOURCES em data.py.
+    defocus_source: recompute
+    batch_size: 1
+    image_size: 256
+    shuffle: false
+    max_samples: 8
+
+logging:
+  use_wandb: false
+  wandb_project: genrefocus-bokehnet
+  wandb_entity: null
+  run_name: null

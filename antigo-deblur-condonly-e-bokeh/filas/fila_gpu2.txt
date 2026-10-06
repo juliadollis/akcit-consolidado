@@ -1,0 +1,10 @@
+# === PRIORIDADE: faixa de K estendida (0.01..1.0) ===
+# A 1a rodada saturou no piso (best_k=2.0 num intervalo 1..100). Sem isto, a
+# tabela de metricas nao pode ser usada para comparar modelos.
+kesc-oficial|--lora-repo nycu-cplab/Genfocus-Model --lora-file bokehNet.safetensors --nome oficial-paper-kesc001 --saida juliadollis/bokeh-eval-infer-oficial-kesc --limite 20 --long-side 512 --lote 10 --k-escala 0.01
+kesc-nosso|--lora-repo juliadollis/genrefocus-bokehnet-fase2-real --lora-file bokeh.safetensors --nome nosso-fase2-kesc001 --saida juliadollis/bokeh-eval-infer-nosso-kesc --limite 20 --long-side 512 --lote 10 --k-escala 0.01
+kesc-semtreino|--lora-repo none --nome sem-treino-kesc001 --saida juliadollis/bokeh-eval-infer-semtreino-kesc --limite 20 --long-side 512 --lote 10 --k-escala 0.01
+# === A1: a ablacao da Tab. 6 (fase-1-only), ja na escala corrigida ===
+fase1only|--lora-repo juliadollis/genrefocus-bokehnet-synth-2gpu --lora-file bokeh.safetensors --nome fase1-so-sintetico --saida juliadollis/bokeh-eval-infer-fase1 --limite 20 --long-side 512 --lote 10 --k-escala 0.01
+# === A4: amostra completa da DDPD (73 imagens) ===
+ddpd73-nosso|--lora-repo juliadollis/genrefocus-bokehnet-fase2-real --lora-file bokeh.safetensors --nome nosso-fase2-DDPD73 --saida juliadollis/bokeh-eval-infer-nosso-ddpd73 --limite 0 --long-side 512 --lote 10 --k-escala 0.01

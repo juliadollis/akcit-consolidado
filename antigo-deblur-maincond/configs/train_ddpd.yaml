@@ -1,0 +1,64 @@
+# Treino da DeblurNet (Stage 1) — APENAS DDPD (akcit-pixel/DDPD).
+#
+# Etapa 1 do plano: treinar só com o DDPD. Depois (train_base.yaml) entra o
+# subset do RealBokeh junto.
+#
+# ATENÇÃO — tamanho do dataset: o DDPD train tem só 344 imagens. Com batch
+# efetivo 32, 60K steps = ~5500 épocas sobre 344 pares → risco ALTO de overfit
+# puro (decora o train e não generaliza). Por isso aqui usamos MENOS steps
+# (15K) e checkpoint mais frequente. Trate este run como baseline/sanidade do
+# treino real, não como o modelo final do paper (esse é o train_base com
+# DDPD + RealBokeh). Ajuste `steps` à vontade.
+#
+# FIEL AO PAPER (mantido): rank 128, 512², bf16, batch efetivo 32, AdamW
+# lr=1e-4 wd=1e-4, cosine warmup 500, GC ligado.
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: true
+
+runtime:
+  output_dir: outputs/deblurnet_ddpd
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 32   # batch efetivo 32 (paper)
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250             # ~2h entre saves nesse ritmo; nunca ficar horas sem checkpoint
+  keep_last_n_checkpoints: 5
+  resume: true                      # retoma do último checkpoint se o job reiniciar
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  deblur:
+    datasets:
+      - name: akcit-pixel/DDPD
+        split: train
+    steps: 2000                     # DDPD converge ~500 (best_loss já travou); 2000 dá margem pós-warmup(500) sem decorar à toa
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-deblurnet
+  wandb_entity: null
+  run_name: deblurnet-ddpd-only

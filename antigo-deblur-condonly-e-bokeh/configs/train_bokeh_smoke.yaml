@@ -1,0 +1,73 @@
+# Smoke test do BokehNet — valida o caminho REAL de 2 condições (FLUX + LoRA +
+# transformer_forward com AIF + defocus map) em 3 steps, antes de gastar 40K/60K
+# steps de cluster. Pega cedo bugs de:
+#   - shape do group_mask (diag entre as 2 condições, fix 2026-07-19),
+#   - dataloader de bokeh (defocus [0,1] em 3 canais, aif/bokeh [-1,1]),
+#   - forward de 2 condições no backbone.
+#
+# Usa a PASTA LOCAL da rota a (gerada por scripts/prefetch_bokeh_local.py) com
+# max_samples=8 e 256² pra ser rápido. A rota a tem 341.6 GB no hub — NÃO cabe
+# na cota; o prefetch em streaming salva a versão lado-menor-512 (~40-100 GB)
+# em /workspace/data-bokeh/rota_a. O smoke funciona com o prefetch AINDA EM
+# ANDAMENTO (basta ter >= 8 amostras no metadata.jsonl).
+# rank 16 (mais leve; o group_mask independe do rank). wandb/resume off.
+#
+# Uso (dentro do container, 1 GPU):
+#   python3 -m genfocus_train.train smoke --config configs/train_bokeh_smoke.yaml --stage bokeh
+# ou via SLURM:
+#   sbatch scripts/smoke_bokeh.slurm
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  max_coc: 100.0
+  deblur_lora_rank: 16
+  bokeh_lora_rank: 16
+  gradient_checkpointing: true
+
+runtime:
+  output_dir: outputs/smoke_bokeh
+  seed: 42
+  num_workers: 0
+  pin_memory: false
+  mixed_precision: bf16
+  gradient_accumulation_steps: 1
+  max_grad_norm: 1.0
+  log_every_steps: 1
+  save_every_steps: 1
+  keep_last_n_checkpoints: 1
+  resume: false
+
+optimizer:
+  name: adamw
+  lr: 5.0e-4
+  weight_decay: 0.0
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 0
+  min_lr_ratio: 0.1
+
+data:
+  bokeh:
+    datasets:
+      - name: /workspace/data-bokeh/rota_a   # rota a LOCAL (prefetch_bokeh_local.py)
+        split: train                            # ignorado para fontes locais
+    steps: 3
+    # Mapa de defocus: RECOMPOSTO de depth+k+s1 com clip(k*|D-s1|/max_coc,0,1),
+    # a formula da inferencia oficial. NAO usamos a coluna `defocus_map` do df:
+    # ela foi salva normalizada POR IMAGEM (dm/dm.max()), o que apaga o k e
+    # treinaria um modelo sem controle de bokeh. Ver DEFOCUS_SOURCES em data.py.
+    # Use "column" apenas para comparar com o comportamento antigo.
+    defocus_source: recompute
+    batch_size: 1
+    image_size: 256
+    shuffle: false
+    max_samples: 8
+
+logging:
+  use_wandb: false
+  wandb_project: genrefocus-bokehnet
+  wandb_entity: null
+  run_name: null

@@ -1,0 +1,808 @@
+PLANO DE REGERACAO DOS DADOS DA BOKEHNET
+=========================================
+
+Data: 2026-09-10
+Escopo: bokehnet-preprocessing @ ba928bc mais a working tree v2 nao commitada
+Consolida: AUDITORIA_DADOS_ROTAS_BC.md, AUDITORIA_CODIGO_ROTAS_BC.md,
+           RELATORIO_DEFEITOS_DADOS_E_GERACAO_BOKEHNET.txt,
+           VEREDITO_FINAL_BOKEHNET.md, DECISOES_FASE2.md, TABELA_FINAL.md,
+           PANORAMA.md
+Versao HTML equivalente: artefato "Regeracao dos Dados do BokehNet"
+
+Decisoes 01 a 06 desta versao ja incorporam as respostas da usuaria em
+2026-09-10: BokehMe aprovado com teste previo; rota C fiel ao paper (sweep da
+Eq. 5 como rotulo, K analitico como validador, filtros automaticos no lugar da
+revisao manual); duas versoes da rota B, uma com o nosso DeblurNet e uma com o
+oficial.
+
+
+------------------------------------------------------------------------------
+0. A RAIZ, EM UMA FRASE
+------------------------------------------------------------------------------
+
+O pre-processamento construia o mapa de defocus a partir de PROFUNDIDADE
+LINEAR NORMALIZADA POR IMAGEM. A inferencia oficial e o nosso avaliador
+constroem a partir de DISPARIDADE METRICA ABSOLUTA. As duas formulas se
+parecem e nao sao a mesma. A busca binaria por K na avaliacao absorve a
+diferenca de escala, mas nao a de forma. Toda a fase 2 foi treinada assim.
+
+                       original                      alvo (oficial)
+  profundidade    (z-z_min)/(z_max-z_min)       z metrico, em metros
+  campo           linear em z                   disparidade 1/z
+  plano de foco   mean(d01[M])                  median(1/z[M])
+  bokeh level     50,0 constante                k_eq3 / 1000
+  normalizador    o maximo do proprio mapa      100,0 congelado
+  faixa de K      -                             3,6 a 36 (default oficial 15)
+
+Referencia de codigo:
+  Inference_bokehNet.py:94    disp = 1.0 / depth_metrico
+  Inference_bokehNet.py:118   disp_focus = median(disp[mask])
+  Inference_bokehNet.py:138-140  cond_map = |k*(disp-disp_focus)| / MAX_COC
+  Inference_bokehNet.py:20     MAX_COC = 100.0
+  Inference_bokehNet.py:53     --k_value default 15.0
+
+A Eq. 3 do paper e dimensionalmente consistente em milimetros:
+
+  f, D_focus em mm   f^2 * D_focus / (2F(D_focus - f))     -> mm^2
+  pixel_ratio        maior_lado_px / sensor_mm             -> px/mm
+  k_eq3              mm^2 * px/mm                          -> px*mm
+                     k_eq3 * |delta(1/mm)|                 -> px      OK
+
+  k_value oficial    k_eq3 / 1000                (disparidade em 1/m)
+
+A cadeia fecha por tres caminhos independentes:
+  - mediana do k_eq3 da tabela rota-b-kfix-eq3  ->  k_value 16,6
+  - mediana calculada da EXIF (318 amostras com distancia de foco)  ->  20,1
+  - default da inferencia oficial  ->  15,0   (Fig. 12 varre K em {0,5,10,15})
+
+Consequencia pratica boa: a tabela rota-b-kfix-eq3 JA tem o K correto para as
+11.635 amostras da rota B. E o unico pedaco do dado atual que se salva
+inteiro. Basta dividir por 1000.
+
+
+------------------------------------------------------------------------------
+1. AS SEIS DECISOES
+------------------------------------------------------------------------------
+
+01. CONGELAR max_coc = 100,0 E APOSENTAR O 10,5107 DO KFIX.        [APROVADO]
+
+    Esta e a opcao MAIS FIEL possivel, nao uma escolha nossa. O paper nao
+    normaliza: a Eq. 2 e D_def = K*|D - D_focus|, crua. Mas o mapa entra no
+    VAE, entao algum normalizador e obrigatorio, e o unico valor com
+    autoridade e o do codigo oficial, MAX_COC = 100.0.
+
+    O kfix usou 10,5107 (percentil 82,66 do coc_p99_px) para "fazer o mapa da
+    rota B ocupar [0,1] como o da rota C". Isso e normalizacao POR FONTE, uma
+    versao de granularidade grossa do defeito D1. Aceitar que a rota B ocupe
+    [0, 0,05] e a rota C [0, 0,4]: a diferenca e fisica, e e justamente o que
+    o modelo precisa aprender.
+
+    Medido: com max_coc = 10,5107, coc_p99 >= max_coc em 2.018/11.635 = 17,3%
+    da rota B, ou seja o mapa ja saturava.
+
+02. ROTA C FIEL AO PAPER: SWEEP DA EQ. 5 COMO ROTULO.              [APROVADO]
+
+    O rotulo de K da rota C e o sweep de SSIM da Eq. 5, com o BokehMe. O K
+    analitico do train/metadata/<id>.json vira VALIDADOR INDEPENDENTE.
+
+    Isso e mais forte do que usar o metadata como rotulo: o gate
+    "Eq. 3 versus sweep correlacionam > 0,9" passa a comparar a estimativa
+    contra tres termos medidos em laboratorio, em vez de comparar duas
+    estimativas entre si.
+
+    Consequencia: a constante de largura do sensor da RealBokeh deixa de ser
+    bloqueante. Ela e necessaria so para o K de validacao, nao para o rotulo.
+    Sai da etapa critica.
+
+    A VALIDACAO HUMANA VIRA OS FILTROS AUTOMATICOS, DECLARADO. O paper
+    descreve 4 a 8 s por imagem, cerca de 8 h de anotacao, para refinar as
+    mascaras de foco. No lugar:
+      - nitidez DENTRO versus FORA da mascara na imagem BOKEH (o unico teste
+        que confere a hipotese fisica: a regiao em foco tem que ser a mais
+        nitida);
+      - IoU entre a mascara da AIF e a da bokeh;
+      - area, componentes conexos e cobertura de borda;
+      - fila de revisao para o que cair em qualquer um, com mascara manual
+        opcional em <manual_masks_dir>/<sample_id>.png.
+    E uma SUBSTITUICAO, nao uma equivalencia, e vai escrita no texto. A favor
+    dela: a anotacao manual e a parte menos reproduzivel do paper.
+
+03. BOKEHME PUBLICO COMO RENDERER DE ROTULO FINAL.                 [APROVADO]
+
+    A extensao privada dos autores e SO a de formato de abertura (Sec. 3.3,
+    Eq. 6). A Eq. 5 e a Fig. 3(a) usam [43] puro, e o supplement B.2 confirma:
+    "we then optimized the parameter K using simulator [43]".
+
+    NAO E 100% FIEL, e isso vai escrito. O paper nao publica:
+      gamma                      (default do BokehMe: 4.0)
+      defocus_scale              (default: 10.0)
+      highlight / threshold / enhance_ratio  (off, 220/255, 0.4)
+      qual das tres saidas: bokeh_pred (hibrida), bokeh_classical, bokeh_neural
+      versao dos checkpoints arnet.pth e iunet.pth
+      K_min e K_max da Eq. 5
+      o limiar de SSIM
+
+    Caminho: congelar a configuracao, gravar o commit do checkout e o hash dos
+    dois checkpoints na proveniencia de CADA amostra, e declarar no texto que
+    os parametros nao sao publicados e que fixamos os nossos.
+
+    TESTE ANTES DE RODAR (tres itens, o segundo e o que importa):
+      a) DISCO, NAO GAUSSIANA. Ponto branco em fundo preto, longe do plano
+         focal. O perfil radial da saida tem que ter topo plano e borda dura.
+         Gaussiana tem sino. Pega o D4 direto.
+      b) CALIBRACAO DO RAIO. Plano de profundidade sintetico, K conhecido,
+         medir o raio do borrao e assertar raio_px == K*|delta_disp|. E o
+         teste que amarra o renderer a Eq. 2 e a Eq. 3. Sem ele, todo K que
+         sair do sweep e um numero sem unidade.
+      c) highlight on/off. Muda visivelmente as bolinhas e o paper nao diz
+         nada. Decidir e congelar.
+
+    Contrato do BokehMe, ja verificado no demo.py:
+      defocus = K * (disp - disp_focus) / defocus_scale
+      e dentro do pipeline: classical_renderer(image**gamma, defocus*defocus_scale)
+      logo o raio de borrao e K*delta_disp em pixels.
+      A conta do adaptador da v2 (k_renderer = k*(d_max-d_min)) esta CERTA.
+
+    Detalhe pratico: o demo.py grava bokeh_pred.JPG, entao o SSIM do sweep
+    hoje seria calculado sobre JPEG. Rodar in-process resolve de graca, junto
+    com o ganho de ~100x.
+
+04. DUAS VERSOES DA ROTA B: NOSSO DEBLURNET E O OFICIAL.           [APROVADO]
+
+    Isola a contribuicao do DeblurNet na fase 2 da BokehNet, e e a unica forma
+    de saber se a diferenca de LPIPS de 0,2385 contra 0,2433 no RealDOF importa
+    a jusante. So a rota B dobra: ~25 h extras em 1 GPU, 6,2 h em 4.
+
+    CUIDADO 1 -- O main_adapter TEM QUE SER CONDICIONAL AO CHECKPOINT.
+      nosso   = main+cond, rank 128  ->  main_adapter="deblurring"
+      oficial = cond-only            ->  main_adapter=None  (atual, CORRETO)
+    Se fixar "deblurring" hardcoded, a versao com os pesos deles passa a rodar
+    errado: o mesmo defeito, espelhado. Vira uma flag.
+
+    Mecanismo verificado em genfocus_flux.py:151-167: specify_lora aplica
+    scaling[adapter] = 1 if adapter == specified_lora else 0. Com
+    main_adapter=None, TODO adapter no branch principal vai a scaling 0.
+    Para o cond-only oficial isso e correto (o LoRA so existe no caminho das
+    condicoes). Para o nosso, o LoRA principal e zerado sem erro e sem
+    warning. Saida lavada, LPIPS ~0,85, ja medido.
+
+    TESTE DE ACEITACAO, nos dois modelos, antes de queimar GPU: 20 imagens.
+    Se a saida tiver variancia do Laplaciano MENOR que a da entrada borrada,
+    o adapter esta errado. Custa minutos; o defeito e sutil o bastante para
+    passar num spot check apressado, e seriam 13.500 AIFs inutilizaveis.
+
+    CUIDADO 2 -- as duas versoes NAO sao "tudo igual menos a AIF". DepthPro e
+    BiRefNet rodam SOBRE a AIF, entao depth, mascara, z_focus e o K da Eq. 3
+    sao todos re-derivados. Isso e o certo (e o que acontece na inferencia),
+    mas significa que as distribuicoes de K vao diferir e as duas versoes sao
+    RELEASES SEPARADOS que nunca se misturam no mesmo treino.
+
+05. SEGURAR A ROTA A ATE MEDIR SE ELA E O GARGALO.                 [APROVADO]
+
+    Os ~70K alvos sinteticos foram renderizados com o gaussiano de 16 camadas
+    e kernel de 51 px, entao o pre-treino ensinou gaussiana e nao bokeh.
+    Rerenderizar com BokehMe e a etapa mais cara e a unica sem estimativa.
+    Proposta: treinar primeiro um controle so com B e C corrigidas, e
+    rerenderizar A so se o pre-treino se mostrar limitante.
+
+06. CONGELAR OS DADOS ATUAIS COMO v0 E NAO SOBRESCREVER.           [APROVADO]
+
+    Os tres dfs e os checkpoints da fase 2 continuam validos como dado de
+    APARENCIA e como linha de comparacao. A variante "so rota c" bate os pesos
+    oficiais em LPIPS nas tres mesas. O que nao se sustenta e qualquer numero
+    de CONTROLABILIDADE medido neles.
+
+
+------------------------------------------------------------------------------
+2. CONTRATO DE CONTROLE -- 4 DEFEITOS
+------------------------------------------------------------------------------
+
+[D1] CRITICO / A,B,C -- O mapa gravado apaga o K.       Status: v2 pronto
+
+  writers.py:394-403 grava dm / dm.max() * 65535. Como dm = k*|D-s1|, o k
+  cancela algebricamente. Era um bloco de save_visualizations que virou dado.
+
+    Medido: max(defocus_map) == 65535 exato em TODAS as amostras, k de 33 a 195
+
+  FIX: normalizar pelo max_coc global congelado, nunca pelo maximo da propria
+  amostra. O writer da v2 ja faz isso.
+
+[RAIZ] CRITICO / A,B,C -- Treino e inferencia em espacos diferentes.
+                                                       Status: fix pequeno
+
+  A busca binaria por K na avaliacao absorve parte da diferenca de ESCALA,
+  mas nao a de FORMA. Um degrau de 1 m para 20 m da delta 19 em z e 0,95 em
+  1/z. Um degrau de 20 m para 40 m da delta 20 em z, que e MAIOR, e 0,025 em
+  1/z. So em disparidade a ordenacao e opticamente correta.
+
+  FIX: uma biblioteca unica, control_contract.py, usada por geracao,
+  dataloader, avaliacao e inferencia.
+
+    K       = k_eq3 / 1000.0
+    disp    = 1.0 / depth_metric_m
+    max_coc = 100.0
+
+  A v2 ja usa disparidade, mas alimenta compute_signed_coc com disparidade em
+  1/m enquanto o k_eq3 esta na convencao milimetro: FATOR 1000.
+
+  Nota boa: median(1/z) = 1/median(z), logo o focus_depth_from_mask da v2 ja
+  e exatamente equivalente ao median(disp[mask]) oficial.
+
+[T4] ALTO / A,B,C -- max_coc tem tres convencoes no repositorio.
+                                                       Status: decisao 01
+
+  Mapa gravado normalizado por imagem; max_coc = 100 nos configs default;
+  10,5107 no kfix. O paper nao define normalizador nenhum.
+
+[NOVO] ALTO / A,B,C -- K em pixels da imagem gravada, treino recorta a 512.
+                                                       Status: a construir
+
+  CoC em pixels escala com a resolucao. O dataloader reescala o lado menor
+  para 512 e recorta, com fator que varia POR AMOSTRA, e nada aplica esse
+  fator ao K. O paper nao enfrenta isso porque treina em resolucao nativa com
+  tiling (Sec. 3.5).
+
+    Medido:  512/min(W,H):  1024x574 -> 0,892     624x1024 -> 0,821
+
+  FIX: aplicar o fator no dataloader, ou gravar o mapa ja na resolucao de
+  treino. Gate que falta: conferir o mapa POS-CROP contra k*|delta_disp|/100
+  recalculado na escala do recorte. Os gates existentes conferem o arquivo
+  escrito, nao o tensor que o modelo recebe.
+
+
+------------------------------------------------------------------------------
+3. ROTA B (ITW / Flickr) -- 6 DEFEITOS
+------------------------------------------------------------------------------
+
+[D2] CRITICO -- k = 50,0 constante nas 11.635 amostras.  Status: v2 pronto
+
+  parse_exif_for_k procura FocusDistance, SubjectDistance e
+  HyperfocalDistance no formato ANINHADO da API do Flickr. O dataset tem
+  ApproximateFocusDistance num dicionario PLANO. Nenhuma chave casa.
+
+    Medido: 1.100 linhas de atfortes/BokehDiffusion -> 0 ocorrencias das tres
+            coluna k: 1 valor distinto, 50,0, em 11.635/11.635
+
+  FIX: nao e arrumar a chave. O paper diz explicitamente para NAO usar a EXIF
+  como plano de foco, e parsear a chave certa resolveria so 29% das amostras.
+  D_focus sai da Eq. 4 sobre o depth metrico do DepthPro; a Eq. 3 usa so f, F
+  e pixel_ratio. Sem fallback: rejeita e registra o motivo. K passa a existir
+  em 100%.
+
+[D3] ALTO -- O plano de foco e a media, e a Eq. 4 e a mediana.
+                                                        Status: v2 pronto
+
+  genrefocus.py:437 usa np.mean; a inferencia oficial usa np.median. A media e
+  sensivel a vazamento da mascara para o fundo, que e exatamente o caso em que
+  a mascara ja esta ruim.
+
+    Medido: |Eq4 - s1|  mediana 0,0031   p90 0,079   max 0,49
+
+[D12] MEDIO -- A mascara e segmentada na imagem borrada.  Status: v2 pronto
+
+  As rotas passam tmp_bokeh para o BiRefNet enquanto a profundidade vem da
+  AIF. A Fig. 3(b) e explicita na ordem: DeblurNet recupera a AIF, e DEPOIS se
+  estima depth e mascara. Na rota B a AIF e gerada, logo as duas nao sao
+  alinhadas pixel a pixel.
+
+  FIX: mascara da AIF. A da bokeh fica so como checagem de IoU.
+
+[D14] MEDIO -- pixel_ratio usa a largura, o paper diz "largest edge".
+                                                        Status: fix pequeno
+
+  Fig. 16: "the image's largest edge length divided by the physical sensor
+  width (px/mm)". A v2 passa bokeh_bgr.shape[1]. Erra em retrato: 32 das 100
+  amostras conferidas na auditoria sao retrato. A tabela kfix ja fez certo e
+  foi verificada em 900/900 linhas.
+
+  FIX: max(H, W). Uma linha.
+
+[D10] ALTO -- A escala metrica e a focal sao jogadas fora.
+                                                        Status: fix pequeno
+
+  O DepthPro devolve metros E focallength_px no mesmo forward. O codigo grava
+  so a versao min-max; z_min, z_max e a focal nao vao para lugar nenhum.
+  grep focallength_px no repositorio retorna ZERO usos.
+
+    Medido: z_max == 10000 exato (teto do DepthPro): 2.988/11.635 = 25,7%
+            cena util em menos de 256 niveis de 65535: 2.870 = 24,7%,
+            mediana 23 niveis no subgrupo z_max >= 1000
+
+  FIX: gravar z_min_m, z_max_m, focus_depth_m e focallength_px. A v2 ja grava
+  o NPY metrico mas FALTA O GATE: rejeitar z_focus fora de faixa plausivel e
+  cena com faixa de depth degenerada.
+
+[B6] MEDIO -- Sem gate de qualidade da AIF do DeblurNet.
+                                                        Status: a construir
+
+  A saida do DeblurNet entra direto como AIF. Alucinacao, regiao ainda borrada
+  ou mudanca de conteudo contaminam depth, mascara, D_focus e o par inteiro.
+
+  FIX: variancia do Laplaciano registrada, mais o teste que vale mais:
+  nitidez DENTRO versus FORA da mascara na imagem BOKEH. Limiar definido
+  depois de um piloto revisado, nao escolhido a priori.
+
+
+------------------------------------------------------------------------------
+4. ROTA C (RealBokeh e LFDOF) -- 9 DEFEITOS
+------------------------------------------------------------------------------
+
+[NOVO/BLOQUEANTE] O espelho akcit-pixel/RealBokeh e o dataset que a rota C
+deveria ter consumido.                                  Status: verificar
+
+  A aritmetica sustenta:
+    gt/ do RealBokeh_3MP, split train : 20.554 imagens
+    akcit-pixel/RealBokeh, split train : 20.495 linhas
+                              diferenca:      59
+
+  Uma linha por imagem de gt/, menos 59. Ou seja, o espelho JA pareou cada
+  alvo de bokeh contra uma AIF por cena, que e exatamente o pareamento que o
+  D5 e o D6 pedem. Schema (HANDOFF_PROJECT_HISTORY.md:120): image_blur,
+  image_focus, image_pre_deblur, file_name_base, com o f-stop no
+  file_name_base. Ja esta na org e ja treinou o DeblurNet. A rota C
+  reconstruiu do zero uma versao pior, com 2.932 amostras.
+
+  UMA PERGUNTA BLOQUEIA USA-LO, e e de 2 minutos:
+  o image_focus e o train/in/<id>_f22.JPG, ou o maior f-stop de dentro de gt/?
+    - se for o f/22  -> o espelho resolve D5 e D6 de uma vez, e a rota C passa
+                        a ser um join com o metadata/ por cena. Melhor caminho.
+    - se for gt/     -> o espelho HERDA o D6 (mediana f/14, e <= f/5.6 em
+                        12,7% das cenas) e e melhor reconstruir do
+                        RealBokeh_3MP bruto lendo in/.
+
+  Conferir no mesmo acesso: se o espelho preservou 2000x1500, e quais sao os
+  59 descartados. (huggingface.co/datasets/akcit-pixel/RealBokeh devolveu 401
+  daqui, e o script que construiu o espelho nao esta no repositorio -- mesma
+  situacao do rotab_kfix.py, rodou so no cluster.)
+
+[D6] CRITICO -- A AIF de verdade existe e nao foi usada.
+                                                        Status: a construir
+
+  O dataset tem train/in/<id>_f22.JPG, uma por cena, sempre em f/22. O codigo
+  ignora a pasta e escolhe a AIF de dentro de gt/, pegando o maior f-stop.
+
+    Medido: f-stop maximo em gt/, por cena
+              <= f/2.8 :   119 cenas   ( 3,0%)
+              <= f/5.6 :   504 cenas   (12,7%)
+              <= f/8   :   874 cenas   (22,1%)
+              <= f/11  : 1.528 cenas   (38,6%)
+              mediana  : f/14
+
+  Em 12,7% das cenas a "AIF" e uma foto de bokeh forte. Nessas, a profundidade
+  saiu de uma imagem borrada, a mascara tambem, e o sweep tentou casar bokeh
+  contra bokeh.
+
+  FIX: ler train/in/. Maior ganho por linha de codigo de toda a lista: uma
+  pasta que existia e nao foi aberta. Gate: f-stop da AIF >= 16 em toda
+  amostra. E isso muda a conta do D5 PARA CIMA: se a AIF vem de fora de gt/,
+  TODO arquivo em gt/ e alvo.
+
+[D5] CRITICO -- Uma amostra por cena, de ate 21 possiveis.
+                                                        Status: v2 pronto
+
+    Medido: RealBokeh_3MP train/gt: 3.960 cenas, 20.554 imagens
+            imgs/cena  2->704  3->620  5->2.346  7->9  9->34  21->247
+            publicado: 2.932 = 14% do disponivel
+
+  O que se perde nao e so volume: e a variacao de K com o CONTEUDO FIXO.
+  Somado ao D2, o dataset inteiro da fase 2 nao tem nenhuma variacao de K
+  sobre a mesma cena. E a explicacao direta da controlabilidade fraca.
+
+  FIX: todos os pares. Com a AIF vinda de in/, sao 20.554 em vez de 2.932.
+
+[D7] ALTO -- Os metadados dao o K analiticamente.        Status: decisao 02
+
+    train/metadata/<id>.json:
+      "focal_length": 49,
+      "target_avs": [2.0, 4.0, 7.1, 9.0, 20.0],
+      "focus_plane_distance": 0.585,
+      "focus_plane_uncertainty": 0.015
+
+  Os tres termos da Eq. 3, anotados de fabrica, e nada disso foi lido.
+
+  FIX (decisao 02): o rotulo continua sendo o sweep da Eq. 5, fiel ao paper.
+  O K analitico vira VALIDADOR INDEPENDENTE, o que torna o gate de correlacao
+  um teste de verdade em vez de comparacao entre duas estimativas.
+
+[NOVO] ALTO -- focus_plane_distance calibra o DepthPro e ninguem usa.
+                                                        Status: a construir
+
+  E profundidade metrica MEDIDA, com incerteza, num plano conhecido. Se o
+  DepthPro disser 0,72 m onde a regua diz 0,585 +- 0,015, o mapa esta 23%
+  errado MESMO COM K PERFEITO, porque D e D_focus precisam viver na mesma
+  escala.
+
+  FIX: gate por amostra, median(depth_pro[mask]) contra focus_plane_distance.
+  Em 3.960 cenas isso rende uma curva de calibracao da escala metrica do
+  DepthPro que serve para todo o resto do projeto, inclusive os canais
+  geometricos do PLANO_CONDICIONAMENTO_GEOMETRICO.
+
+[D8] ALTO -- 47% do K no teto do sweep, e sem filtro de SSIM.
+                                                        Status: v2 pronto
+
+    Medido: k == 300 exato: 1.379/2.932 = 47,0%
+            mediana de k  : 251,65
+            k == 0        :    51      =  1,7%
+            interior E ssim >= 0,6: 1.483/2.932 = 50,6%
+
+  O teto nao e um K fisico: significa "o otimo ainda crescia na borda da
+  busca". Causa raiz: o renderer gaussiano com kernel de 51 px nunca alcancava
+  o borrao real, entao o SSIM crescia monotonicamente ate a borda.
+
+  FIX: teto adaptativo com expansao e is_k_censored gravado -- censurado nao
+  entra na loss de controle, mas o arquivo fica. Limiar de SSIM calibrado
+  contra painel revisado e congelado no release.
+
+[D9] ALTO -- LFDOF nunca entrou.                        Status: fix pequeno
+
+  A rota (c) do paper e "LFDOF E RealBokeh". A publicada e 100% RealBokeh, e o
+  codigo nao tem nem o caminho de leitura.
+
+  FIX: akcit-pixel/LFDOF ja esta na nossa org: 11.247 pares de treino, 725 de
+  teste, com AIF REAL renderizada da light field -- melhor que a AIF
+  aproximada do RealBokeh. Fonte original tambem publica:
+  sweb.cityu.edu.hk/miullam/AIFNET/ (LFDOF.zip, ~11 GB).
+  ATENCAO: sao N desfocadas por AIF, entao o split TEM que ser por cena.
+
+[C8] MEDIO -- Sem validacao de registro AIF vs bokeh.   Status: v2 pronto
+
+  Pequeno deslocamento, mudanca de exposicao ou crop derruba o SSIM e desloca
+  o K estimado.
+
+  FIX: ORB/RANSAC mais crop da intersecao, com uma ressalva que a v2 ainda nao
+  tem: RESTRINGIR A TRANSLACAO e so aplicar se o afim for significativamente
+  diferente da identidade. Reamostrar a bokeh com Lanczos altera o proprio
+  label que se quer aprender.
+
+[NOVO] MEDIO -- 1.028 cenas desapareceram sem explicacao.
+                                                        Status: a construir
+
+  Sao 3.960 cenas no disco e 2.932 amostras publicadas. Nenhuma auditoria
+  explica o sumico de 26%. Suspeita: parse_aperture devolvendo None pelo teste
+  if "_f" not in name, ou len(fstop_map) < 2. Sao 26% de cenas de graca se for
+  so o parser.
+
+
+------------------------------------------------------------------------------
+5. RENDERER -- 3 DEFEITOS
+------------------------------------------------------------------------------
+
+[D4] CRITICO / A,C -- O BokehMe nunca foi instalado.    Status: a construir
+
+  _render_bokehme levanta ImportError INCONDICIONAL, entao render_bokeh cai
+  sempre num blur gaussiano de 16 camadas com kernel limitado a 51 px, sem
+  oclusao e sem scattering.
+
+  Atinge duas coisas: os ~70K alvos sinteticos da rota A foram renderizados
+  assim, entao o pre-treino ensinou gaussiana; e os rotulos de K da rota C
+  foram calibrados contra esse renderizador. O k da rota B e o k da rota C NAO
+  SAO A MESMA GRANDEZA, e foram concatenados no mesmo dataset.
+
+  FIX: ver decisao 03, com o teste previo de tres itens.
+
+[NOVO] ALTO -- O sweep custa ~40 processos por amostra. Status: a construir
+
+  O adaptador da v2 chama subprocess demo.py 24 vezes no grid grosso e 16 no
+  fino, cada vez subindo Python, CUDA, arnet.pth e iunet.pth do zero. Para
+  20-30K amostras isso e da ordem de SEMANAS, com QOS de 2 jobs.
+
+  FIX: BokehMe importado como modulo, modelo carregado uma vez e mantido na
+  GPU, mais busca ternaria em vez de grid -- SSIM x K e unimodal na pratica,
+  12 a 15 avaliacoes bastam. As duas coisas somam ~100x.
+  E PRE-REQUISITO DAS ETAPAS 4 E 5, e nao estava em nenhum plano.
+
+[NOVO] ALTO -- A v2 marca todo BokehMe como nao verificado.
+                                                        Status: decisao 03
+
+  Com is_final_label_renderer = False, cada amostra de C e A nasce com
+  is_valid_for_control = false. Nao existe caminho para gerar dado final.
+
+
+------------------------------------------------------------------------------
+6. ROTA A (sintetica) -- 4 DEFEITOS
+------------------------------------------------------------------------------
+
+[NOVO] ALTO -- A fonte do paper esta trocada.           Status: fix pequeno
+
+  A v2 aceita so DiffCamera e EBB!. O supplement B.2: "we draw candidate
+  images from [80] and the EBB [27] collections", e [80] e Generative
+  Photography, Yuan et al., CVPR 2025. DiffCamera e [69], um BASELINE do
+  paper, nao uma fonte de dado. O --top-n 1700 esta certo.
+
+[NOVO] ALTO -- Uma amostra por imagem, quando o paper tira 40.
+                                                        Status: fix pequeno
+
+  O paper parte de ~1,7K AIFs nitidas e chega a ~70K pares, ou seja ~40
+  sorteios de (K, D_focus) por imagem. A v2 renderiza um por linha do
+  manifesto. FIX: --samples-per-image.
+
+[D13] MEDIO -- O filtro de nitidez do paper nunca e chamado.
+                                                        Status: fix pequeno
+
+  filter_by_laplacian esta implementado e nenhuma rota o usa. A Sec. B.2
+  filtra o pool de AIF por variancia do Laplaciano antes de gerar qualquer
+  coisa.
+
+  FIX: usar, e ranquear DENTRO DE CADA FONTE. Variancia do Laplaciano nao e
+  comparavel entre datasets de resolucao e compressao diferentes, entao um
+  ranking global entre EBB! e Generative Photography enviesaria a selecao.
+
+[P2] MEDIO -- A procedencia da rota A e irrecuperavel.  Status: a construir
+
+  O pipeline gravou so um UUID como nome. E impossivel certificar que uma
+  imagem de benchmark esta fora do treino da fase 1. FIX: gravar o caminho de
+  origem na regeracao. Ate la, a ressalva vai no TEXTO, nao so no repositorio.
+
+
+------------------------------------------------------------------------------
+7. TRANSVERSAIS -- 7 DEFEITOS
+------------------------------------------------------------------------------
+
+[D11] CRITICO -- Fallback silencioso que inverte o sinal da profundidade.
+                                                        Status: fix pequeno
+
+  estimate_depth tem TRES except Exception: pass em sequencia. Se o DepthPro
+  falhar, cai no Depth Anything, que devolve DISPARIDADE -- normalizada igual
+  e gravada igual. A amostra fica espelhada e nenhum gate pega, porque a
+  informacao mutua do QC e CEGA a inversao. Sem evidencia de que disparou, e
+  tambem sem como saber.
+
+  FIX: um backend so, sem fallback, e depth_backend gravado por amostra.
+  Para o dado que ja existe: rodar DepthPro de novo em 200 amostras e conferir
+  o SINAL da correlacao com a coluna gravada.
+
+[NOVO] CRITICO -- Sem dedup e sem split por cena.       Status: a construir
+
+  Nenhum dos catorze defeitos e nenhum dos quinze gates da auditoria anterior
+  cobre isso. Com um par por cena era quase inofensivo. Com 5 a 21 pares por
+  cena na RealBokeh e N desfocadas por AIF no LFDOF, e vazamento garantido
+  entre treino e validacao.
+
+  FIX: manifesto de split determinstico por scene_id, MATERIALIZADO no dataset
+  e nao deixado para o config. pHash para quase-duplicatas.
+
+[NOVO] ALTO -- O route_b.py da v2 nao roda.             Status: fix pequeno
+
+  O import json foi removido na edicao da v2, mas o json.dumps continua num
+  bloco finally, FORA do except. O NameError propaga e mata o run na PRIMEIRA
+  amostra. Varredura AST do repositorio inteiro: e o unico nome nao definido.
+
+  Licao de metodo: compileall e parsing AST nao pegam isso. Um smoke de duas
+  amostras pegaria, e a v2 registra que nenhum teste de runtime foi feito.
+
+[NOVO] ALTO -- Um gate do QC rejeita o que nao deveria. Status: fix pequeno
+
+  discriminate_depth_source decide "o depth veio da imagem borrada?" e marca
+  red. Em B e C voce SABE que rodou DepthPro na AIF, entao a pergunta nao se
+  aplica. E com a bokeh presente o veredito sai SO de spread <= 0,06 -- o
+  sinal de chamfer e calculado e ignorado. Na rota B, cuja AIF vem do
+  DeblurNet e e naturalmente mais macia, vai rejeitar em massa.
+
+  FIX: rebaixar para yellow e medir a taxa de rejeicao POR MOTIVO no piloto
+  antes de ligar qualquer gate como bloqueante.
+
+[Q1] MEDIO -- O teste de deslocamento existia e estava desligado.
+                                                        Status: v2 pronto
+
+  As rotas chamam verify_depth_alignment(..., run_shift_test=False), entao
+  mi_aligned fica no default True e o gate passa silenciosamente. Um dos
+  controles de alinhamento disponiveis nunca protegeu nada.
+
+[P1] MEDIO -- Proveniencia incompleta.                  Status: fix pequeno
+
+  A v2 grava commit, control_version e hash do DeblurNet e do DepthPro. Falta
+  o hash do BIREFNET -- que define a mascara, logo D_focus, logo K -- mais o
+  commit do checkout do BokehMe, os hashes de arnet.pth e iunet.pth, a seed, a
+  resolucao processada e a licenca da fonte.
+
+  Mesmo raciocinio do D11 vale para a segmentacao: o fallback
+  BiRefNet -> RMBG -> GrabCut e silencioso e mask_source continua dizendo
+  "automatic".
+
+[NOVO] MEDIO -- Tres armadilhas de compatibilidade na v2.
+                                                        Status: fix pequeno
+
+  a) pack_files_to_hf nao copia focus_depth_m, depth_min_m nem depth_max_m:
+     repack de files para parquet ZERA justamente as colunas que reconstroem
+     o controle.
+  b) preprocessing/__init__ ainda exporta compute_defocus_map,
+     compute_k_from_exif e estimate_depth da v1 sob os nomes sem qualificacao.
+  c) s1 continua sendo gravado, um plano de foco em depth normalizado -- a
+     semente exata do defeito raiz. Renomear para s1_legacy_depth01 ou tirar.
+
+
+------------------------------------------------------------------------------
+8. O EFEITO SOMADO
+------------------------------------------------------------------------------
+
+  FONTE               HOJE                  N        DEPOIS                        N        CENAS
+  rota A sintetica    alvo gaussiano     ~70.000     alvo BokehMe             ~70.000       ~1.700
+  rota B ITW          K constante 50      11.635     K real em 100%           ~13.500      ~13.500
+  rota C RealBokeh    1 par por cena       2.932     todos os pares, AIF f/22  20.554        3.960
+  rota C LFDOF        ausente                   0    Eq. 4 + Eq. 5             11.247      a contar
+  ---------------------------------------------------------------------------------------------------
+  real total                              14.567                              ~45.000      ~17.500
+  o que o paper declara: 13K ITW + 13K series =  26.000
+
+  Com a decisao 04, a rota B sai em DUAS versoes (nosso DeblurNet e o
+  oficial), como releases separados. O dataset de cada versao continua sendo
+  ~45.000, nao 58.000.
+
+  A RESSALVA QUE MUDA A LEITURA DESSE NUMERO. Contar amostras superestima o
+  ganho: as 20.554 da RealBokeh vem de 3.960 CENAS, e o sampler ve o mesmo
+  conteudo ate 21 vezes. A diversidade efetiva e a coluna de cenas.
+
+  E a mistura muda: a rota C passaria a ser cerca de dois tercos do dado real,
+  contra proporcao aproximadamente balanceada no paper (13K ITW + 13K series
+  proprias). A rota B tem 13.500 cenas DISTINTAS, uma foto cada. Proposta:
+  reportar cenas ao lado de amostras, e por peso ou cap por cena no sampler
+  para a rota B nao ser afogada.
+
+
+------------------------------------------------------------------------------
+9. POR QUE ISSO IMPORTA -- LVCORR MEDIDO
+------------------------------------------------------------------------------
+
+  LVCorr (controlabilidade)        LF-Bokeh   RealBokeh   RealDOF
+  fase 1, so sintetico             +0,9059    +0,8609     +0,9247
+  pesos oficiais do paper          +0,8868    +0,8498     +0,9644
+  nosso, fase 2, a+b+c             +0,4365    +0,8257     +0,1324
+  kfix, K da rota b pela Eq. 3     +0,8288    +0,4832     -0,4599
+
+  A fase 1 sintetica APRENDEU controle. A fase 2 nas rotas reais DESTRUIU.
+  E a degradacao e MONOTONA no tempo de treino: na variante so-rota-c no
+  RealDOF, +0,2509 em 10K steps, +0,0281 em 20K, -0,1776 em 30K, -0,2061 em
+  60K. Quanto mais treina nas rotas reais, pior o controle.
+
+  Consertar SO o K da rota B ja recupera quase tudo no benchmark de
+  controlabilidade: o kfix leva o LF-Bokeh de +0,4365 para +0,8288, colando
+  nos pesos oficiais (+0,8868). ESSA E A PROVA DIRETA DE QUE O ROTULO DE K
+  ERA O GARGALO -- nao a arquitetura, nao o numero de steps, nao a aparencia.
+
+  O kfix piorou o LPIPS porque consertou a rota B e deixou a C na convencao
+  antiga no MESMO run, o que e tambem o argumento contra qualquer remendo
+  parcial agora.
+
+  LEITURA HONESTA DO QUE TEMOS: os numeros de FIDELIDADE valem e sao bons --
+  a variante so-rota-c bate os pesos oficiais em LPIPS nas tres mesas.
+  Nenhum numero de CONTROLABILIDADE dos checkpoints atuais mede o metodo do
+  paper.
+
+
+------------------------------------------------------------------------------
+10. GATES DE ACEITACAO -- 22
+------------------------------------------------------------------------------
+
+Rodar todos sobre uma amostra de 200 antes de soltar o pipeline.
+Os sete marcados NOVO nao estavam em nenhuma auditoria.
+
+  GATE                                                             PEGA
+  max(defocus) varia entre amostras com k diferente                 D1
+  k tem ao menos 100 valores distintos na rota B                    D2
+  s1 recalculado como mediana bate com o gravado a 1e-6             D3
+  render de um ponto de luz produz DISCO, nao gaussiana             D4
+  contagem de amostras por cena maior que 1 na rota C               D5
+  f-stop da AIF >= 16 em toda amostra da rota C                     D6
+  k da Eq. 3 (metadata) e k do sweep correlacionam acima de 0,9     D7, D4
+  nenhuma amostra com k no teto exato do sweep                      D8
+  source_* contem LFDOF em ao menos 25% da rota C                   D9
+  z_min_m, z_max_m e focallength_px nao nulos                       D10
+  depth_backend gravado e igual a depth_pro em 100%                 D11
+  mascara e depth vem do mesmo arquivo de origem                    D12
+  laplacian_var gravado e acima do corte                            D13
+  histograma de k_value cai em [0, 50]                              raiz
+  defocus gravado bate com k*|1/z - 1/z_foco|/100 a 1e-4            raiz
+  raio de borrao do renderer == K*|delta_disp| a 2%                  NOVO
+  k_value(F1)/k_value(F2) == F2/F1 a 1% na mesma cena                NOVO
+  median(depth_pro[mask]) contra focus_plane_distance                NOVO
+  mapa POS-CROP bate com k*|delta_disp|/100 na escala do recorte     NOVO
+  nenhum scene_id aparece em treino e validacao                      NOVO
+  z_focus_m e z_max_m fora do teto de 10.000 m                       NOVO
+  contagem de CENAS distintas por rota, nao so de amostras           NOVO
+
+O TESTE QUE VALE MAIS QUE TODOS. Pegar uma cena da rota C com cinco aberturas,
+gerar os cinco mapas, e conferir que o k_value cai monotonicamente com o
+f-stop crescente. E a versao quantitativa, que MEDE em vez de so detectar:
+com f e D_focus fixos, a Eq. 3 diz que k_value(F1)/k_value(F2) e EXATAMENTE
+F2/F1. As 247 cenas de 21 aberturas dao 20 pontos cada para isso.
+
+
+------------------------------------------------------------------------------
+11. ORDEM DE EXECUCAO
+------------------------------------------------------------------------------
+
+1. CONVENCAO, import json, E OS DOIS TESTES QUE FALTAM
+   O /1000 no K, max_coc = 100, max(H,W) no pixel_ratio, o import json, e os
+   testes de razao de f-stops e de mapa pos-crop. Sem isso o piloto nao mede
+   nada.                                              sem GPU, horas
+
+2. BOKEHME IN-PROCESS, BUSCA TERNARIA, E O TESTE DE TRES ITENS
+   Pre-requisito das etapas 4 e 5. Inclui o teste de disco, a calibracao do
+   raio e a decisao de highlight.                     sem GPU para escrever
+
+3. VERIFICAR O ESPELHO akcit-pixel/RealBokeh
+   O image_focus e o f/22 de in/ ou o maior f-stop de gt/? Decide se a rota C
+   parte do espelho ou do RealBokeh_3MP bruto. Investigar tambem as 1.028
+   cenas faltantes.                                   minutos
+
+4. ROTA C, REALBOKEH COMPLETA
+   Maior ganho por hora de GPU: 2.932 para 20.554, com variacao de K dentro
+   da cena. E a rota C sozinha ja e o nosso melhor modelo hoje. Aproveitar
+   para gerar a curva de calibracao do DepthPro contra focus_plane_distance.
+                                DepthPro em 3.960 AIF: 1,5 h em 1 GPU / 0,4 h em 4
+
+5. ROTA C, LFDOF
+   Fecha a rota como o paper a define.                ~5 h em 1 GPU / 1,3 h em 4
+                                                      SO depois da etapa 2
+
+6. ROTA B, DUAS VERSOES
+   Com todas as correcoes juntas, e depois do teste de aceitacao de 20
+   imagens do main_adapter nos DOIS checkpoints. Regerar a rota B sem corrigir
+   o K e pagar 25 h de GPU para reproduzir o mesmo problema com pesos
+   diferentes.
+       DeblurNet 13.500 x 6,6 s: 24,8 h em 1 GPU / 6,2 h em 4, POR VERSAO
+       depth, mascara e QC: mais 5,0 h e 1,2 h, por versao
+
+7. ROTA A COM BOKEHME, SE FOR O GARGALO
+   A mais cara e a unica sem estimativa. Medir antes: treinar um controle so
+   com B e C corrigidas.                              a medir, ver decisao 05
+
+Os 6,6 s por imagem do DeblurNet sao medidos no caminho de producao, com
+torch.compile e batch_tiles, sobre imagens de 1024 px no lado longo, que e a
+resolucao real do BokehDiffusion.
+
+REGRAS DO CLUSTER que se aplicam a tudo acima: --time bem alto (ex.
+7-00:00:00); QOS onejob permite 2 jobs simultaneos; selecionar GPU livre por
+UUID, nunca por indice (GPU4 da h100n3 tem defeito e contamina o stdout do
+nvidia-smi); nunca cancelar job nem apagar nada sem perguntar; rsync com
+excludes e nunca --delete sem eles.
+
+
+------------------------------------------------------------------------------
+12. O QUE CONTINUA SEM RESPOSTA
+------------------------------------------------------------------------------
+
+LARGURA DO SENSOR DA REALBOKEH. A EXIF das JPGs foi removida (medido: so
+JFIF, 2000x1500). Com a decisao 02 isso deixou de ser bloqueante -- e
+necessario so para o K de validacao. O valor que o ajuste implica hoje,
+36,0 mm, e suspeito de bom demais e vale conferir contra a camera declarada no
+paper do Bokehlicious.
+
+O image_focus DO ESPELHO akcit-pixel/RealBokeh. Ver etapa 3. Bloqueia decidir
+se a rota C parte do espelho ou do dataset bruto.
+
+PROCEDENCIA DA ROTA A. Enquanto nao for regerada, nao ha como certificar que
+um benchmark esta fora do treino da fase 1. Ressalva do TEXTO.
+
+SE A ABLACAO DO PAPER SE REPRODUZ. Hoje a+c ganha de a+b+c nas quatro mesas,
+o contrario da Tab. 6. A hipotese e que a rota B atrapalha por causa do K
+constante, e a correcao testa isso diretamente. Se depois de corrigida a rota
+B continuar atrapalhando, e um achado NOSSO e vai para o texto.
+
+POR QUE OS PESOS OFICIAIS SATURAM NO NOSSO HARNESS. O bokeh_net.py registra
+que na primeira rodada os tres modelos, os oficiais incluidos, escolheram
+best_k no PISO da faixa. Que os pesos DELES saturem sugere que a convencao do
+harness -- MAX_COC=100, disparidade em 1/m e long_side=512 em vez de 0 -- nao
+bate com a de treino deles, e o candidato obvio e a resolucao, porque CoC em
+pixels escala com ela. Nao muda o ranking, mas e o mesmo defeito de convencao
+de escala aparecendo pela terceira vez, agora na avaliacao.
+
+E A RESSALVA GERAL SOBRE "100%". Ninguem de fora do grupo dos autores
+reproduz o paper bit a bit hoje: o repositorio oficial nao publicou codigo de
+treino, dados, o benchmark LF-Bokeh, nem limites de K, limiar de SSIM,
+configuracao do renderer, resolucao de treino, otimizador e scheduler. O
+objetivo possivel e uma reproducao publica, matematicamente coerente e
+auditavel, com cada desvio declarado -- nao identidade com o treino privado.
+
+
+------------------------------------------------------------------------------
+FONTES
+------------------------------------------------------------------------------
+
+paper GenRefocus arXiv:2512.16923v3 (Sec. 3.2, Eq. 2-5, Fig. 3, Fig. 12,
+  Fig. 16, supplement B.1-B.2)
+bokehnet-preprocessing @ ba928bc mais a working tree v2 nao commitada
+third_party/Genfocus/Inference_bokehNet.py
+src/vendor/genfocus_flux.py:151-167 (specify_lora)
+JuewenPeng/BokehMe demo.py
+vision-pipeline/inference/src/pipelines/bokeh_net.py (harness de avaliacao)

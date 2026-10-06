@@ -1,0 +1,3 @@
+# 2026-08-27 — refaz a fase 1 e amostra maior no benchmark corrigido
+fase1-rb|--lora-repo juliadollis/genrefocus-bokehnet-synth-2gpu --lora-file bokeh.safetensors --nome fase1-RB-eq4-k300 --saida juliadollis/bokeh-eval-rb-fase1 --dataset-entrada juliadollis/bokeh-bench-realbokeh-test-v2 --limite 40 --long-side 512 --lote 10 --k-escala 3.0
+nosso-rb-full|--lora-repo juliadollis/genrefocus-bokehnet-fase2-real --lora-file bokeh.safetensors --nome nosso-RB-eq4-k300-full --saida juliadollis/bokeh-eval-rb-nosso-full --dataset-entrada juliadollis/bokeh-bench-realbokeh-test-v2 --limite 0 --long-side 512 --lote 10 --k-escala 3.0

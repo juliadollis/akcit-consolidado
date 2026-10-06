@@ -1,0 +1,34 @@
+# Núcleo (FLUX + LoRA)
+# ATENÇÃO: NÃO instale torch/torchvision via pip dentro do container
+# `transformers-pytorch-gpu`. O container já traz torch + torchvision como PAR
+# COMPATÍVEL (mesma ABI). Instalar um torch diferente no --user quebra o
+# torchvision do container com: "RuntimeError: operator torchvision::nms does not exist".
+#
+# transformers/diffusers SEM pino DE PROPÓSITO: o container traz transformers
+# em versão de desenvolvimento (5.0.0.dev0). O diffusers MAIS RECENTE é compatível
+# com ele; pinar diffusers numa versão antiga reintroduz o erro
+# "cannot import name 'FLAX_WEIGHTS_NAME'". Esta combinação (transformers do
+# container + diffusers mais novo, sem torch no --user) já rodou sem erro.
+transformers
+diffusers
+peft
+accelerate
+safetensors
+sentencepiece     # tokenizer T5 do FLUX
+protobuf
+
+# Dados (Hugging Face) e imagens
+datasets
+python-dotenv
+Pillow
+numpy
+pyyaml
+
+# Logging
+wandb
+
+# Notas:
+# - FLUX.1-dev exige aceitar a licença no Hugging Face Hub: `huggingface-cli login`.
+# - Os datasets `akcit-pixel/*` exigem HF_TOKEN (veja .env.example).
+# - O repositório oficial dos autores (Genfocus) NÃO está aqui — clone à parte
+#   (scripts/setup_genfocus.sh) e garanta que `import Genfocus.pipeline.flux` funcione.

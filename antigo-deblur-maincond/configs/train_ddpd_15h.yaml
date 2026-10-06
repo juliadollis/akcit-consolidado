@@ -1,0 +1,55 @@
+# DeblurNet (Stage 1) — SÓ DDPD, run de ~15h.
+# ~15h ÷ ~31s/step ≈ 1800 steps. Deixa treinar bem além da convergência (~500)
+# pra ver se ajuda ou começa a overfitar nas 344 imagens do DDPD. Termina sozinho
+# dentro do limite de 3 dias e sobe pro HF no fim.
+# OBS: se o ritmo real for mais rápido, ele só termina antes de 15h — sem problema.
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: true
+
+runtime:
+  output_dir: outputs/deblurnet_ddpd_15h
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 32
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250
+  keep_last_n_checkpoints: 5
+  resume: true
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 150
+  min_lr_ratio: 0.1
+
+data:
+  deblur:
+    datasets:
+      - name: akcit-pixel/DDPD
+        split: train
+    steps: 1800                       # ~15h @ ~31s/step
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-deblurnet
+  wandb_entity: null
+  run_name: deblurnet-ddpd-15h

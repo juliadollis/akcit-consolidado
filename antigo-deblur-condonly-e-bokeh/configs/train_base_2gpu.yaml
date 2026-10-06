@@ -1,0 +1,65 @@
+# DeblurNet (Stage 1) — TREINO DO PAPER em 2 GPUs (DDP via accelerate).
+#
+# FIEL AO PAPER: DPDD completo + top-3000 RealBokeh (Laplaciano), rank 128, 512²,
+# bf16, 60K steps, batch EFETIVO 32.
+#
+# Batch efetivo = batch_size(1) × gradient_accumulation_steps × num_gpus(2).
+#   1 × 16 × 2 = 32  ✅  (por isso grad_accum=16 aqui, e não 32 como no single-GPU)
+#
+# Com 2 GPUs o throughput ~dobra; 60K steps fica viável ao longo de vários dias
+# (tempo limite do SLURM bem folgado). resume:true + save a cada 250 permitem
+# re-`sbatch` pra continuar caso o job seja interrompido.
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: false      # GC OFF = mais rápido (se der OOM, troque pra true)
+
+runtime:
+  output_dir: outputs/deblurnet_paper_2gpu_condlora
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 16   # 1 × 16 × 2 GPUs = batch efetivo 32 (paper)
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250
+  keep_last_n_checkpoints: 5
+  resume: true
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  deblur:
+    datasets:
+      - name: akcit-pixel/DDPD
+        split: train
+      - name: akcit-pixel/RealBokeh
+        split: train
+        top_k_sharpest: 3000        # paper §4.1: top-3000 por variância do Laplaciano
+        sharpness_column: image_focus
+    steps: 60000                    # alvo fiel ao paper (viável com 2 GPUs + tempo folgado)
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-deblurnet
+  wandb_entity: null
+  run_name: deblurnet-paper-2gpu-condlora

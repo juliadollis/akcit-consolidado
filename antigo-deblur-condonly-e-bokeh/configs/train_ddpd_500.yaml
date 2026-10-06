@@ -1,0 +1,53 @@
+# DeblurNet (Stage 1) — SÓ DDPD, run CURTO de 500 steps.
+# DDPD converge ~500 (best_loss travou em ~0.048 nessa faixa). Baseline rápido
+# (~4h). warmup reduzido p/ 50 (warmup=500 num run de 500 nunca decairia o lr).
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: true
+
+runtime:
+  output_dir: outputs/deblurnet_ddpd_500_condlora
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 32
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 100             # run curto: salva mais miúdo
+  keep_last_n_checkpoints: 5
+  resume: true
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 50                  # proporcional a um run de 500 steps
+  min_lr_ratio: 0.1
+
+data:
+  deblur:
+    datasets:
+      - name: akcit-pixel/DDPD
+        split: train
+    steps: 500
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-deblurnet
+  wandb_entity: null
+  run_name: deblurnet-ddpd-500-condlora

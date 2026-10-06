@@ -1,0 +1,2 @@
+fullres-oficial|--lora-repo nycu-cplab/Genfocus-Model --lora-file bokehNet.safetensors --nome oficial-paper-FULLRES --saida juliadollis/bokeh-eval-infer-oficial-fullres --limite 10 --long-side 0 --lote 5 --k-escala 0.01
+fullres-fase1|--lora-repo juliadollis/genrefocus-bokehnet-synth-2gpu --lora-file bokeh.safetensors --nome fase1-FULLRES --saida juliadollis/bokeh-eval-infer-fase1-fullres --limite 10 --long-side 0 --lote 5 --k-escala 0.01

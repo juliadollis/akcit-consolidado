@@ -1,0 +1,103 @@
+# BokehNet FASE 2 + CONDICIONAMENTO GEOMETRICO -- condicao B' (controle de ruido)
+#
+# Campanha do PLANO_CONDICIONAMENTO_GEOMETRICO.md secao 8. As quatro condicoes
+# partem do MESMO LoRA da fase 1 e diferem so no que esta marcado abaixo, entao
+# sao ablacoes limpas.
+#
+#   A   baseline, ja treinado (nao precisa de YAML)
+#   A'  A + perda ponderada por oclusao, SEM canais novos
+#   B   A' + 2 branches geometricos (6 canais)
+#   B'  B com ruido de mesma estatistica no lugar de G  (controle de capacidade)
+#
+# Dado: rotas b + c, a fase 2 do paper, sem alteracao de composicao.
+# NAO parte da kfix: ela e o pior modelo treinado nas tres mesas (REGISTRO).
+#
+# 4 GPUs x accum 8 = batch efetivo 32, identico ao paper e identico a fase 2,
+# entao os checkpoints sao diretamente comparaveis aos modelos ja treinados.
+#
+# gradient_checkpointing LIGADO: com 2 branches extras a sequencia vai de 3.584
+# para 5.632 tokens e a VRAM ja estava em 66 de 80 GB sem eles.
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: true
+
+runtime:
+  output_dir: outputs/bokehnet-geo-Blinha
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 16    # 1 x 16 x 2 GPU(s) = batch efetivo 32
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250
+  # 2, nao 5: os tres treinos simultaneos com 5 ckpts de 2,6 GB cada
+  # estouraram o disco em 2026-09-08 e mataram os tres em cascata.
+  # 2 basta para resume e corta o consumo de ~13G para ~5G por run.
+  keep_last_n_checkpoints: 2
+  resume: true
+  # --- perda ponderada por oclusao (plano secao 5.3, em espaco de token) ---
+  occlusion_lambda: 2.0
+  occlusion_pool: max
+  # branches geometricos: False = condicao A' (so a perda muda)
+  geo_branches: true
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  bokeh:
+    datasets:
+      - name: AKCITPixel3/BKXcuVXCmeRvN   # rota b
+        split: train
+      - name: AKCITPixel3/CMiQdveBBzNii   # rota c
+        split: train
+    steps: 15000                          # screen; a vencedora vai para 60K
+    defocus_source: recompute
+    min_calibration_ssim: 0.6
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+    # --- condicionamento geometrico ---
+    geo_condition: true
+    geo_escalares: /saida/f0b_todas.jsonl
+    geo_field: inverse
+    geo_sem_escalares: erro
+    # Constantes MEDIDAS por geo_cond/jobs/f0d_calibrar_constantes.py sobre o
+    # conjunto de treino. Nao sao default nem chute; a procedencia esta em
+    # constantes_rota_c.json e no HF geocond-auditoria-testes.
+    geo_constantes:
+      tau_occlusion: 88.17023931749958
+      u_max: 2.7231549947753972
+      s_max: 4.479333796246694
+      k0_curvature: 14.599951909926324
+      kt_max: 7.567014022271208
+      z_percentile_max: 99.5
+      smooth_sigma: 2.0
+      min_quant_levels: 256
+    # CONTROLE: substitui G por ruido de MESMA ESTATISTICA. Se o ganho de B
+    # persistir aqui, ele veio de capacidade e nao de informacao.
+    geo_ruido_controle: true
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-bokehnet
+  wandb_entity: null
+  run_name: bokehnet-geo-Blinha
+  upload_every_steps: 1000
+  upload_hf_repo_base: bokehnet-geo-Blinha

@@ -1,0 +1,519 @@
+RELATÓRIO DE DEFEITOS — DADOS E GERAÇÃO DA BOKEHNET
+===================================================
+
+Data: 2026-09-10
+Escopo: rotas reais B e C que alimentam a fase 2 da BokehNet, os dados já
+gerados dessas rotas e a interface atual desses dados com o dataloader.
+
+Fontes auditadas
+-----------------
+1. Paper GenRefocus, arXiv:2512.16923, v3.
+2. Pipeline de geração: AKCIT-PIXEL/bokehnet-preprocessing, commit
+   ba928bc4e1372de6128eba7458def1d04f07dc2f.
+3. Dados e configs locais de treino em genrefocus_deblurnet_paper.
+
+Importante: este relatório não afirma defeitos na rota sintética A sem uma
+auditoria específica dela. A rota A não existe no repositório de pré-processamento
+auditado. A conclusão sobre A é uma lacuna de rastreabilidade, não uma falha
+comprovada de conteúdo.
+
+
+RESUMO EXECUTIVO
+----------------
+
+Os dados B/C atuais não são uma reprodução fiel da geração descrita no paper.
+Os defeitos que bloqueiam seu uso para supervisão de CONTROLABILIDADE são:
+
+P0-1. Rota B calcula K com a distância de foco do EXIF e usa fallback K=50;
+      o paper explicitamente manda NÃO usar a distância de foco do EXIF.
+P0-2. Rota C calibra K com um renderer gaussiano simplificado, não com o
+      renderer físico usado pelo paper. O stub de BokehMe não é implementado.
+P0-3. Rota C não tem a etapa de refinamento manual da máscara de foco exigida
+      pelo paper para casos reais complexos.
+P0-4. 1.379 de 2.932 exemplos da rota C (47,0%) estão exatamente no teto
+      artificial K=300; são rótulos censurados, não valores físicos exatos.
+P0-5. O treino atual mistura convenções incompatíveis de condição: recompute
+      direto em depth normalizado, kfix métrico/disparidade para B e fallback
+      silencioso de kfix para recompute em C.
+
+Consequência: não iniciar um novo treino principal de BokehNet para medir
+controlabilidade até que os P0 sejam corrigidos e o dataset seja versionado de
+novo. Os dados podem continuar úteis como diagnóstico e, depois de marcados,
+talvez como supervisão auxiliar de aparência; não como rótulo confiável de K.
+
+
+O QUE O PAPER EXIGE
+-------------------
+
+Rota B (ITW):
+  - recebe uma foto bokeh real;
+  - DeblurNet recupera a AIF;
+  - estima depth e máscara de região em foco;
+  - D_focus = mediana do depth dentro da máscara;
+  - usa f e F do EXIF, mas não usa FocusDistance do EXIF;
+  - calcula K pela Eq. 3;
+  - constrói D_def a partir de K, D e D_focus.
+
+Rota C (LFDOF + RealBokeh):
+  - recebe par real AIF/bokeh;
+  - estima a máscara de foco com BiRefNet;
+  - refina manualmente uma pequena região de foco confiável quando necessário;
+  - calibra K por sweep, escolhendo o K cujo renderer se aproxima mais do alvo;
+  - aceita o rótulo somente se SSIM superar um limiar predefinido;
+  - constrói D_def com o K selecionado.
+
+O paper informa cerca de 70k pares sintéticos e 26k exemplos reais. Dos 26k
+reais, aproximadamente 13k são ITW filtrados/verificados e 13k são séries novas
+coletadas pelos autores, com revisão manual de máscaras. Esses 13k privados não
+foram liberados; portanto, a reprodução exata do volume e da curadoria do paper
+não é possível apenas com datasets públicos.
+
+
+DEFEITOS NA ROTA B (ITW / BokehDiffusion)
+------------------------------------------
+
+[P0-B1] Fonte errada de D_focus para a Eq. 3
+
+Estado atual:
+  route_b.py::parse_exif_for_k procura FocusDistance, SubjectDistance ou
+  HyperfocalDistance dentro de flickr_exif e passa esse valor para a Eq. 3.
+
+Por que está errado:
+  O paper afirma explicitamente que campos de distância de foco no EXIF são
+  frequentemente ausentes ou ruidosos e, por isso, não são usados. D_focus
+  deve ser extraído da máscara em foco e do depth monocular.
+
+Efeito:
+  K não representa o plano de foco usado no D_def. Mesmo onde há EXIF, o rótulo
+  pode estar fisicamente incoerente; onde não há EXIF, cai no defeito P0-B2.
+
+Correção necessária:
+  Preservar depth métrico; calcular D_focus = median(depth_metrico[mask]); usar
+  somente f, F e pixel_ratio do EXIF na Eq. 3. Não ler FocusDistance para esse
+  cálculo.
+
+
+[P0-B2] Fallback K=50 cria rótulos constantes e inválidos
+
+Estado atual:
+  Quando parse_exif_for_k retorna vazio/inválido, route_b.py define K=50.0.
+  Na auditoria local de 300 amostras, K=50 apareceu em todas. A rota B final
+  contém 11.635 exemplos nessa situação.
+
+Efeito:
+  A rota B pode ensinar aparência de fotos reais, mas não ensina intensidade de
+  bokeh nem relação entre condição e saída. Pior: o modelo recebe o mesmo K para
+  imagens com graus de blur diferentes.
+
+Correção necessária:
+  Não usar fallback numérico. Recalcular K pela definição correta ou rejeitar a
+  amostra para supervisão de controle, registrando o motivo.
+
+
+[P1-B3] Depth é normalizado por imagem antes do cálculo, destruindo escala
+
+Estado atual:
+  estimate_depth normaliza a saída do DepthPro para [0,1] por imagem. O pipeline
+  descarta a depth métrica original e salva somente a versão min-max.
+
+Efeito:
+  Não é possível recuperar D_focus métrico para a Eq. 3 a partir do dado salvo.
+  Misturar K de óptica com |depth01-s1| torna a unidade do controle arbitrária.
+
+Correção necessária:
+  Salvar depth métrico bruto e z_min/z_max por imagem; derivar a representação
+  normalizada apenas como artefato secundário de rede.
+
+
+[P1-B4] Estatística de foco difere do paper: média em vez de mediana
+
+Estado atual:
+  estimate_focus_plane calcula mean(depth[mask]).
+
+Efeito:
+  Bordas de máscara, pixels errados e foreground com profundidade extensa puxam
+  o foco. A mediana solicitada pelo paper é mais robusta a esses outliers.
+
+Correção necessária:
+  Usar median e registrar área, número de componentes e confiança da máscara.
+
+
+[P1-B5] Máscara e depth vêm de imagens diferentes sem validação explícita
+
+Estado atual:
+  O depth é estimado na AIF deblurrada; a máscara é estimada na bokeh original.
+
+Efeito:
+  A máscara pode não se registrar exatamente com a AIF/depth, sobretudo quando
+  o DeblurNet altera estruturas. Não há teste que confirme essa compatibilidade.
+
+Correção necessária:
+  Definir e versionar a imagem de referência da máscara. Preferir a AIF quando
+  a intenção é combinar máscara com depth da AIF, ou medir/registrar a máscara
+  extraída da bokeh antes de usá-la com o depth.
+
+
+[P1-B6] Não existe gate de qualidade da AIF do DeblurNet
+
+Estado atual:
+  A saída do DeblurNet oficial entra diretamente como AIF.
+
+Efeito:
+  Alucinações, regiões ainda borradas ou mudanças de conteúdo contaminam depth,
+  máscara, D_focus e o par de treino inteiro.
+
+Correção necessária:
+  Criar revisão automática e amostragem humana: nitidez local, mudança extrema
+  de estrutura, discrepância semântica e taxa de rejeição registrada por lote.
+
+
+DEFEITOS NA ROTA C (LFDOF / RealBokeh)
+---------------------------------------
+
+[P0-C1] Renderer de calibração não é o renderer do paper
+
+Estado atual:
+  calibrate_k_ssim_sweep define render_fn = _render_bokeh_simple. Essa função
+  usa 16 camadas de depth, GaussianBlur e kernel limitado a 51 px. A função
+  _render_bokehme apenas lança ImportError; mesmo se BokehMe estiver instalado,
+  o sweep não chama render_bokeh e continua usando o fallback.
+
+Efeito:
+  O K escolhido maximiza SSIM para um renderer gaussiano aproximado, não para o
+  renderer físico guiado descrito no paper. Portanto é um rótulo de K dependente
+  de um simulador diferente e não comparável ao K esperado na inferência.
+
+Correção necessária:
+  Obter/reproduzir o renderer e os parâmetros usados pelos autores. Bloquear
+  geração de rótulos C até que exista uma implementação testada. Não substituir
+  isso por Gaussian blur para dados finais.
+
+
+[P0-C2] Falta refinamento manual da máscara de foco
+
+Estado atual:
+  route_c.py aceita diretamente a máscara binária do BiRefNet, sem interface,
+  flag ou arquivo de edição manual.
+
+Efeito:
+  Em cenas complexas, a máscara errada desloca D_focus; todo o sweep de K passa
+  a otimizar para o plano errado. O paper introduz justamente a revisão manual
+  para preservar esses exemplos sem usá-los com foco incorreto.
+
+Correção necessária:
+  Implementar fila de revisão de máscaras: guardar máscara automática, máscara
+  final, região de foco selecionada e auditoria de quem/quando editou.
+
+
+[P0-C3] Teto K=300 é arbitrário e censura quase metade da rota
+
+Estado atual:
+  A CLI define k_min=0, k_max=300 e sweep_steps=16. O paper não publica valores
+  numéricos para K_min/K_max. Nos dados atuais, 1.379/2.932 (47,0%) têm K=300.
+
+Efeito:
+  K=300 significa "ótimo ainda cresce no limite da busca", não "K físico é 300".
+  O topo da relação condição->blur é comprimido e o treino aprende rótulos
+  contraditórios.
+
+Correção necessária:
+  Usar busca adaptativa: começar numa faixa inicial, expandir o teto enquanto o
+  máximo estiver perto da borda, depois refinar localmente. Salvar K_min, K_max,
+  todos os candidatos e flag is_k_censored. Não usar censurados na loss de
+  controlabilidade até reetiquetagem.
+
+
+[P1-C4] Sweep de K é grosseiro
+
+Estado atual:
+  São 16 pontos globais e 8 pontos locais. A resolução efetiva de K é ampla para
+  um rótulo contínuo e o sweep é executado em lado longo de 512 px.
+
+Efeito:
+  K sofre quantização e pode variar com resolução. O comentário de que o sweep
+  em baixa resolução seleciona "o mesmo K" não é validado no repositório.
+
+Correção necessária:
+  Validar erro K_fullres versus K_512 em painel representativo; usar busca
+  coarse-to-fine e registrar a resolução da calibração.
+
+
+[P1-C5] O limiar de SSIM não é aplicado durante a geração
+
+Estado atual:
+  A rota C grava calibration_ssim para todas as amostras e não rejeita nenhum
+  resultado por SSIM. O treino local filtra em 0,6, valor escolhido localmente.
+
+Efeito:
+  O dataset publicado contém supervisão ruim; outro consumidor pode treiná-lo
+  sem filtro. O valor 0,6 não é reproduzível a partir do paper, que não o divulga.
+
+Correção necessária:
+  Definir o limiar em um painel rotulado manualmente, antes do dataset final;
+  materializar valid_for_control no dataset, em vez de depender de config externa.
+
+
+[P1-C6] Falta LFDOF
+
+Estado atual:
+  route_c.py baixa exclusivamente timseizinger/RealBokeh_3MP. A auditoria dos
+  dados confirmou 2.932/2.932 exemplos RealBokeh e zero LFDOF.
+
+Efeito:
+  A rota C não reproduz a composição de dados do paper e perde diversidade de
+  pares reais/light-field.
+
+Correção necessária:
+  Adicionar adaptador LFDOF e processá-lo pelo mesmo contrato da rota C.
+
+
+[P1-C7] Só os f-stops extremos são usados
+
+Estado atual:
+  Para cada cena RealBokeh, discover_pairs escolhe menor f-stop como bokeh e
+  maior f-stop como AIF, descartando aberturas intermediárias.
+
+Efeito:
+  Reduz o número de pares e a cobertura contínua de intensidade de blur.
+
+Correção necessária:
+  Definir pares por série incluindo aberturas intermediárias, preservando o
+  agrupamento de cena para evitar vazamento entre treino e validação.
+
+
+[P1-C8] Não há validação de registro AIF <-> bokeh
+
+Estado atual:
+  O QC avalia depth <-> AIF. Ele recebe a bokeh apenas para discriminar a fonte
+  do depth, não para estimar/validar a transformação geométrica do par.
+
+Efeito:
+  Pequeno deslocamento, mudança de exposição ou crop entre AIF e bokeh derruba
+  o SSIM e desloca artificialmente o K estimado.
+
+Correção necessária:
+  Medir registro do par, estimar homografia/transformação quando aplicável,
+  recortar a interseção válida e rejeitar pares sem alinhamento confiável.
+
+
+DEFEITOS DO QC E DOS FILTROS
+----------------------------
+
+[P1-Q1] Teste de deslocamento depth <-> AIF está desligado
+
+Estado atual:
+  route_b.py e route_c.py chamam verify_depth_alignment(...,
+  run_shift_test=False).
+
+Efeito:
+  O QC possui teste de pico de informação mútua para detectar deslocamento, mas
+  ele não é executado. Logo, um dos controles de alinhamento disponíveis não
+  protege os dados produzidos.
+
+Correção necessária:
+  Habilitar o teste em geração final, ou substituir por teste mais eficiente
+  validado e registrar o deslocamento máximo aceito.
+
+
+[P1-Q2] Não há filtro de qualidade de máscara
+
+Estado atual:
+  Máscaras BiRefNet/RMBG/GrabCut passam diretamente para o cálculo de foco.
+
+Efeito:
+  Máscara vazia, máscara quase total, múltiplos objetos e bordas ruins geram
+  D_focus não confiável.
+
+Correção necessária:
+  Gate mínimo: área relativa, componentes, conectividade, confiança, estabilidade
+  sob resize e amostragem visual estratificada.
+
+
+[P1-Q3] Não há deduplicação nem divisão por cena/origem formal
+
+Estado atual:
+  Não há detector de duplicatas/perceptual hash e não há manifesto de split por
+  cena. A rota C nomeia cenas, mas não materializa um split de treino/validação.
+
+Efeito:
+  Risco de quase-duplicatas e de imagens da mesma série aparecerem em treino e
+  validação, inflando métricas.
+
+Correção necessária:
+  Criar split determinístico por scene_id/source_id e deduplicação por pHash,
+  embedding e inspeção de clusters limítrofes.
+
+
+[P2-Q4] Filtro de nitidez Laplaciano existe, mas não é usado pelas rotas B/C
+
+Estado atual:
+  genrefocus.py contém utilitário de Laplacian variance, mas route_b.py e
+  route_c.py não o invocam.
+
+Efeito:
+  AIFs que já têm blur residual e pares de baixa qualidade podem entrar sem gate
+  de nitidez, contrariando a seleção de imagens sharp reportada no paper.
+
+Correção necessária:
+  Aplicar gate de nitidez apropriado ao papel de cada imagem, calibrado para não
+  rejeitar fundos naturalmente suaves.
+
+
+DEFEITOS NA INTERFACE DADO <-> TREINO
+-------------------------------------
+
+[P0-T1] Fórmula do dataloader não reproduz a inferência oficial
+
+Estado atual:
+  data.py::defocus_from_depth usa K * |depth01 - s1| / max_coc. A inferência
+  oficial usa depth métrico, converte para disp=1/depth e calcula a diferença
+  em disparidade antes da normalização.
+
+Efeito:
+  A BokehNet é treinada para uma condição diferente daquela apresentada em uso.
+  Isso degrada diretamente a controlabilidade mesmo se imagens e K fossem bons.
+
+Correção necessária:
+  Extrair uma única biblioteca de construção do controle usada por geração,
+  dataloader e inferência. Ela deve receber depth métrico, D_focus métrico e
+  produzir a representação exata de produção.
+
+
+[P0-T2] kfix e recompute misturam dois planos de foco
+
+Estado atual:
+  O caminho recompute usa s1 salvo em [0,1]. O caminho kfix B usa z_focus_m.
+  Medição local: s1 implícito e s1 gravado têm diferença p90 de 0,07927 e máxima
+  de 0,48821; portanto não são simplesmente a mesma coordenada convertida.
+
+Efeito:
+  O modelo recebe controles de B e C com semânticas distintas dentro do mesmo
+  treino de fase 2.
+
+Correção necessária:
+  Reprocessar as duas rotas na mesma versão física. Até lá, não usar fallback.
+
+
+[P0-T3] Fallback silencioso de kfix para recompute
+
+Estado atual:
+  Com defocus_source=kfix, se uma amostra não tem entrada kfix (por exemplo C),
+  o dataloader muda internamente para recompute sem falhar.
+
+Efeito:
+  O config diz kfix, mas o lote final mistura fontes de condição sem visibilidade
+  em log. É impossível atribuir resultado experimental a uma única definição.
+
+Correção necessária:
+  Falhar para amostra sem control_version exigida ou selecionar explicitamente a
+  versão por dataset, com contagem e log por lote.
+
+
+[P1-T4] max_coc não é uma convenção única e documentada
+
+Estado atual:
+  Há mapa salvo normalizado por imagem, max_coc=100 no treino padrão e uma
+  calibração global diferente no experimento kfix.
+
+Efeito:
+  A amplitude do canal condicional muda entre fontes e execuções. K deixa de ter
+  interpretação comparável.
+
+Correção necessária:
+  Fixar max_coc por versão de dataset/modelo, registrar sua derivação e aplicá-lo
+  tanto em treinamento quanto em inferência.
+
+
+[P1-T5] Amostras censuradas ainda passam para o treino
+
+Estado atual:
+  O filtro atual olha SSIM e K<=0; não marca nem exclui K==300.
+
+Efeito:
+  Quase metade de C ensina "300" para vários níveis reais de blur superiores,
+  comprimindo a extremidade alta do controle.
+
+Correção necessária:
+  Criar is_k_censored; retirar esses exemplos da loss condicionada até
+  recalibração. Não apagar os arquivos: são dados valiosos de aparência real.
+
+
+LACUNAS DE REPRODUÇÃO E PROVENIÊNCIA
+------------------------------------
+
+[P1-P1] Não há manifesto imutável de geração
+
+Faltam, por amostra/lote:
+  - hash e revisão dos pesos DeblurNet, DepthPro, BiRefNet e renderer;
+  - versão do código e parâmetros completos;
+  - origem exata, licença e split;
+  - seed e resolução processada;
+  - versão da fórmula de condição;
+  - decisão de QC e motivo de rejeição.
+
+Sem isso não é possível provar que uma versão de dados usou o DeblurNet oficial
+nem reproduzir uma regressão.
+
+
+[P1-P2] Renderer e parâmetros de calibração dos autores não estão disponíveis
+
+O paper chama o renderer de "physically guided" e cita BokehMe, mas o pipeline
+auditado não inclui a implementação funcional usada na Eq. 5. Instalar um
+BokehMe genérico não prova equivalência aos parâmetros/versão dos autores.
+
+Correção necessária:
+  Obter o código/configuração de geração dos autores, ou declarar formalmente
+  uma reprodução aproximada e não comparar K absoluto entre as duas versões.
+
+
+[P2-P3] A parcela privada de 13k exemplos reais do paper não está disponível
+
+Esse não é um bug do código, mas limita a equivalência experimental. Não se deve
+afirmar que a reprodução usa os mesmos 26k reais do paper sem coletar séries
+equivalentes e fazer a revisão manual de máscaras.
+
+
+DADOS ATUAIS: FATOS MEDIDOS
+---------------------------
+
+  Rota B: 11.635 exemplos.
+  Rota C:  2.932 exemplos, todos RealBokeh_3MP; nenhum LFDOF.
+  União B+C: 14.567 exemplos, muito abaixo dos ~26k reais reportados no paper.
+  Teto C: 1.379/2.932 = 47,0% com K=300.
+  Interior C + SSIM>=0,6: 1.483/2.932 = 50,6%.
+  Tabela kfix: cobertura de 100% da rota B e 0% da rota C.
+
+
+ORDEM DE CORREÇÃO RECOMENDADA
+-----------------------------
+
+1. Congelar os datasets atuais como v0 e não sobrescrevê-los.
+2. Definir contrato "control_v2" único: unidades, depth, D_focus, K, max_coc e
+   fórmula usada em geração/treino/inferência.
+3. Recuperar/implementar e validar o renderer da Eq. 5 antes de reetiquetar C.
+4. Construir revisão de máscara e registro AIF<->bokeh para C.
+5. Regerar C com LFDOF + RealBokeh, busca adaptativa de K e gate de SSIM.
+6. Regerar B com D_focus métrico pela máscara e Eq. 3 sem FocusDistance/fallback.
+7. Materializar flags de validade e manifestos de proveniência.
+8. Atualizar o dataloader para aceitar exclusivamente control_v2, sem fallback.
+9. Só então executar nova fase 2 e comparar com checkpoints anteriores.
+
+
+ARQUIVOS-CHAVE
+--------------
+
+Pipeline de geração auditado:
+  src/pipelines/route_b.py
+  src/pipelines/route_c.py
+  src/preprocessing/genrefocus.py
+  src/qc/depth_alignment.py
+
+Treino local auditado:
+  genfocus_train/data.py
+  configs/train_bokeh_fase2_4gpu.yaml
+  configs/train_bokeh_fase2_kfix.yaml
+
+Evidência local complementar:
+  AUDITORIA_DADOS_ROTAS_BC.md
+  REGISTRO_GEO_COND.md
+

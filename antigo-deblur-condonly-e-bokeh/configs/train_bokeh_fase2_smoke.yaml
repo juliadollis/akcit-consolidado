@@ -1,0 +1,73 @@
+# SMOKE da FASE 2 — igual ao treino real, mas em 20 steps.
+#
+# POR QUE NÃO USAR O train_bokeh_smoke_hub.yaml
+# Aquele é um smoke de 3 steps com rank 16 e 256², que valida forward/dataloader
+# e nada mais. Este aqui é uma MINIATURA FIEL do treino de verdade: mesmas 2
+# rotas, mesmo rank 64, mesma resolução 512, mesmo grad_accum, mesmo caminho de
+# upload. Serve para conferir, ANTES dos 60K steps:
+#   1. forward de 2 condições + loss descendo;
+#   2. o filtro do paper (min_calibration_ssim) cortando o que deve cortar;
+#   3. o --init-lora carregando os 688 tensores da fase 1;
+#   4. o upload pro HF funcionando NO REPO NOVO;
+#   5. que o .safetensors exportado é carregável pela inferência oficial
+#      (rank 64 é o que o infer_bokeh_test.py espera; um smoke rank 16 NÃO
+#      serviria para esse teste).
+#
+# Tudo em output_dir e repo HF SEPARADOS, para não sujar o treino real.
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64          # IGUAL ao real: o .safetensors precisa ser
+                               # carregável pela inferência oficial.
+  gradient_checkpointing: false
+
+runtime:
+  output_dir: outputs/bokehnet_fase2_smoke
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 8     # 1 × 8 × 4 GPUs = batch efetivo 32
+  max_grad_norm: 1.0
+  log_every_steps: 1                 # queremos ver TODOS os steps
+  save_every_steps: 10
+  keep_last_n_checkpoints: 2
+  resume: false                      # smoke sempre começa do zero
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 5                    # proporcional aos 20 steps
+  min_lr_ratio: 0.1
+
+data:
+  bokeh:
+    datasets:
+      - name: AKCITPixel3/BKXcuVXCmeRvN   # rota b
+        split: train
+      - name: AKCITPixel3/CMiQdveBBzNii   # rota c
+        split: train
+    steps: 20
+    defocus_source: recompute
+    min_calibration_ssim: 0.6          # ver DECISOES_FASE2.md secao 4
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+
+logging:
+  use_wandb: false                     # smoke não polui o projeto do wandb
+  wandb_project: genrefocus-bokehnet
+  wandb_entity: null
+  run_name: bokehnet-fase2-smoke
+  upload_every_steps: 10               # 2 uploads em 20 steps: testa o caminho
+  upload_hf_repo_base: genrefocus-bokehnet-fase2-smoke

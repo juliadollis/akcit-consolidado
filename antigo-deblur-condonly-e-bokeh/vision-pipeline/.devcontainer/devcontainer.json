@@ -1,0 +1,29 @@
+{
+    "name": "Vision Pipeline Dev Environment",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "runArgs": [
+        "--gpus=all",
+        "--ipc=host",
+        "--shm-size=2gb"
+    ],
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+    "workspaceFolder": "/workspace",
+    "forwardPorts": [
+        7860,
+        8888
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-python.python",
+                "ms-python.vscode-pylance",
+                "ms-toolsai.jupyter"
+            ]
+        }
+    },
+    "postCreateCommand": "echo 'Vision Pipeline devcontainer pronto.'",
+    "remoteUser": "root"
+}

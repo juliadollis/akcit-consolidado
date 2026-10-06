@@ -1,0 +1,125 @@
+# BokehNet FASE 2 — VARIANTE "kfix": rota b com o K recomposto pela Eq. 3.
+#
+# NAO SOBRESCREVE NADA. O treino original vive em:
+#   outputs/bokehnet_fase2_4gpu  +  HF genrefocus-bokehnet-fase2-real
+# Esta variante escreve em:
+#   outputs/bokehnet_fase2_kfix  +  HF genrefocus-bokehnet-fase2-kfix
+# Mesmo LoRA de partida (fase 1), mesmo curriculo, MESMOS hiperparametros. A
+# UNICA diferenca e o K da rota b => e uma ablacao limpa.
+#
+# O QUE MUDOU NO DADO (ver DECISOES_FASE2.md secao 6 e o job rotab_kfix.py):
+#   antes: k = 50.0 em TODAS as 11.635 amostras (fallback do pipeline)
+#   agora: K pela Eq. 3 do paper, a partir de f/F/pixel_ratio da EXIF e do
+#          D_focus METRICO (Depth Pro + Eq. 4, mediana na foreground_mask).
+#          Variacao medida: ~46x entre fotos.
+#
+# CALIBRACAO ASSUMIDA (decisao nossa, nao derivada do paper): o MAX_COC=100
+# herdado e ~30x grande demais para estas fotos (CoC real de 1-3 px), o que
+# deixaria o mapa em [0,0.03] e fora da distribuicao de treino. O job calibra
+# MAX_COC pelo p90 do CoC(p99) das primeiras amostras, de modo que o mapa ocupe
+# [0,1] como o da rota c. Isso PRESERVA a variacao relativa entre fotos, que e o
+# objetivo; o normalizador em si e convencao.
+#
+# upload_every_steps: 1000 (em vez de 2500) para termos curva DENSA e poder
+# comparar "com N steps dava X, com M steps da Y" contra o treino original.
+#
+# ---- cabecalho original ----
+# BokehNet (Stage 2) — FASE 2: DADOS REAIS, 4 GPUs, dgx-H100-01 (DOCKER).
+#
+# Currículo do paper §4.1 (literal): "BokehNet is trained in two stages: (i) 40K
+# steps on synthetic data, and (ii) 60K steps on real data." Esta é a FASE 2.
+# Inicia do LoRA da fase 1 via --init-lora, com optimizer/scheduler FRESCOS
+# (novo warmup + cosine sobre os 60K), porque o §3.2(a) chama a fase sintética
+# de "pretrain" — pré-treino seguido de treino, não continuação.
+#
+# DIFERENCAS vs train_bokeh_real_4gpu.yaml (o antigo). Todas registradas em
+# DECISOES_FASE2.md:
+#   1. min_calibration_ssim: aplica o filtro do paper §3.2(c), que o config
+#      antigo não tinha. Ver abaixo.
+#   2. upload_hf_repo_base e run_name NOVOS, para não sobrescrever nada do que
+#      já está no HF (a fase 1 vive em genrefocus-bokehnet-synth-condlora e
+#      genrefocus-bokehnet-synth-2gpu).
+#   3. output_dir próprio.
+#
+# rank 64; batch efetivo 32 = 1 × 8 (accum) × 4 (GPUs), igual ao paper §4.1.
+# 2 condições: AIF em [-1,1] + defocus map em [0,1].
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: false
+
+runtime:
+  output_dir: outputs/bokehnet_fase2_kfix
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 8     # 1 × 8 × 4 GPUs = batch efetivo 32
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250
+  keep_last_n_checkpoints: 5
+  resume: true
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  bokeh:
+    datasets:
+      # Rota b = análoga ao ITW do paper (§3.2(b)): foto de bokeh REAL como
+      # entrada, AIF extraído pela DeblurNet, K pela Eq. 3 a partir da EXIF.
+      # RESSALVA MEDIDA (2026-08-13): auditamos 300 amostras e o k é 50.0 em
+      # TODAS — o valor de FALLBACK do pipeline de dados. A EXIF tem f_number e
+      # focal_length, mas a Eq. 3 exige D_focus em METROS e a coluna `depth` foi
+      # gravada normalizada em [0,1], perdendo a escala. Consequência: a rota b
+      # entra sem NENHUMA variação de bokeh level. Ela ainda ensina aparência
+      # óptica real (o que faltava depois da fase 1), mas não ensina controle de
+      # intensidade. Pendente com o time de dados. Ver DECISOES_FASE2.md.
+      - name: AKCITPixel3/BKXcuVXCmeRvN   # rota b (real + EXIF, ~ITW)
+        split: train
+      # Rota c = LFDOF/RealBokeh do paper (§3.2(c)): pares reais, K calibrado
+      # por sweep de SSIM (Eq. 5). É de onde vem TODA a variação de K que temos
+      # (k de 0 a 300).
+      - name: AKCITPixel3/CMiQdveBBzNii   # rota c (pares reais, K por SSIM)
+        split: train
+    steps: 60000                          # FASE 2: 60K real (paper §4.1)
+    # Mapa de defocus RECOMPOSTO de depth+k+s1 com clip(k*|D-s1|/max_coc, 0, 1),
+    # a fórmula da inferência oficial. NÃO usamos a coluna `defocus_map`, que foi
+    # salva normalizada POR IMAGEM e portanto apaga o k.
+    defocus_source: kfix
+    kfix_repo: juliadollis/rota-b-kfix-eq3
+    # FILTRO DO PAPER §3.2(c), citação literal: "The selected K* is then used as
+    # the pseudo-bokeh-level label for training, provided that its corresponding
+    # SSIM exceeds a predefined threshold to ensure reliable supervision."
+    # Aplica-se só a fontes com a coluna `calibration_ssim` (rota c); a rota b
+    # passa inteira, como no paper, onde o limiar aparece apenas no item (c).
+    # O paper NÃO publica o valor ("predefined"), então este é escolha nossa,
+    # calibrada na distribuição real da coluna. Ver DECISOES_FASE2.md.
+    min_calibration_ssim: 0.6          # ver DECISOES_FASE2.md secao 4
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-bokehnet
+  wandb_entity: null
+  run_name: bokehnet-fase2-kfix
+  upload_every_steps: 1000
+  # Repo NOVO: não sobrescreve a fase 1 (genrefocus-bokehnet-synth-condlora).
+  upload_hf_repo_base: genrefocus-bokehnet-fase2-kfix

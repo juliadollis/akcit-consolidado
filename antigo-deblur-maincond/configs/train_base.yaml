@@ -1,0 +1,73 @@
+# Treino da DeblurNet (Stage 1) em 1× H100 — alinhado ao paper §4.1.
+#
+# FIEL AO PAPER:
+#   - LoRA rank 128 (Deblur).
+#   - 60K steps.
+#   - batch efetivo 32 = 1 (batch) × 32 (grad_accum) × 1 GPU.
+#     (paper: 1 × 8 × 4 GPUs = 32; reproduzimos numa H100 com accum=32.)
+#   - datasets: DPDD (akcit-pixel/DDPD) + subset RealBokeh (akcit-pixel/RealBokeh).
+#
+# [UNSPECIFIED no paper] — decisões de implementação (defaults FLUX LoRA):
+#   - optimizer AdamW, lr=1e-4, weight_decay=1e-4.
+#   - scheduler cosine, warmup=500.
+#   - mixed_precision bf16 (H100 nativo).
+#   - resolução 512² (paper usa 512 central crops na avaliação justa).
+
+model:
+  pretrained_model_name_or_path: black-forest-labs/FLUX.1-dev
+  vae_subfolder: vae
+  transformer_subfolder: transformer
+  max_coc: 100.0
+  deblur_lora_rank: 128
+  bokeh_lora_rank: 64
+  gradient_checkpointing: true
+
+runtime:
+  output_dir: outputs/deblurnet_base
+  seed: 42
+  num_workers: 4
+  pin_memory: true
+  mixed_precision: bf16
+  gradient_accumulation_steps: 32   # batch efetivo 32 (paper)
+  max_grad_norm: 1.0
+  log_every_steps: 10
+  save_every_steps: 250             # ~2h entre saves; nunca ficar horas sem checkpoint
+  keep_last_n_checkpoints: 5
+  resume: true
+
+optimizer:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+
+scheduler:
+  name: cosine
+  warmup_steps: 500
+  min_lr_ratio: 0.1
+
+data:
+  deblur:
+    datasets:
+      - name: akcit-pixel/DDPD
+        split: train               # DPDD: split oficial inteiro (paper)
+      - name: akcit-pixel/RealBokeh
+        split: train
+        top_k_sharpest: 3000        # paper §4.1: top-3000 por variância do Laplaciano
+        sharpness_column: image_focus
+    # paper = 60K steps, mas em 1 H100 (~31s/step) 60K = ~21 dias (inviável) e nem
+    # 15K cabe no limite de 3 dias (~5,4 dias). 8000 steps (~76 épocas sobre os
+    # ~3.344 pares = DPDD + top-3000 RealBokeh) cabe numa rodada de 3 dias (~2,9 dias),
+    # então o job TERMINA sozinho e dispara o upload pro HF. Se o wandb ainda
+    # estiver melhorando no fim, é só re-`sbatch` (resume:true) pra continuar.
+    steps: 8000
+    batch_size: 1
+    image_size: 512
+    shuffle: true
+
+logging:
+  use_wandb: true
+  wandb_project: genrefocus-deblurnet
+  wandb_entity: null
+  run_name: deblurnet-ddpd+realbokeh3k

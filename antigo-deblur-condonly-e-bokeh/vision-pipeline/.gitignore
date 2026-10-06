@@ -1,0 +1,10 @@
+.env
+.cache/
+.venv/
+checkpoints/
+pesos_oficiais/
+mini_dataset/
+__pycache__/
+*.pyc
+.DS_Store
+temp_lote_processamento.parquet

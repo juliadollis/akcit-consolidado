@@ -1,0 +1,2 @@
+realdof-semtreino|--lora-repo none --nome sem-treino-RealDOF --saida juliadollis/bokeh-eval-infer-semtreino-realdof --dataset-entrada akcit-pixel/RealDOF --limite 20 --long-side 512 --lote 10 --k-escala 0.01
+ddpd73-semtreino|--lora-repo none --nome sem-treino-DDPD73 --saida juliadollis/bokeh-eval-infer-semtreino-ddpd73 --limite 0 --long-side 512 --lote 10 --k-escala 0.01

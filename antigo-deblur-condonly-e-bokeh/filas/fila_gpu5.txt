@@ -1,0 +1,2 @@
+rotac-parcial|--lora-repo juliadollis/genrefocus-bokehnet-fase2-rotac-only --lora-file bokeh_step38000.safetensors --nome rotac-only-step38000 --saida juliadollis/bokeh-eval-infer-rotac-step38000 --limite 20 --long-side 512 --lote 10 --k-escala 0.01
+fullres-semtreino|--lora-repo none --nome sem-treino-FULLRES --saida juliadollis/bokeh-eval-infer-semtreino-fullres --limite 10 --long-side 0 --lote 5 --k-escala 0.01

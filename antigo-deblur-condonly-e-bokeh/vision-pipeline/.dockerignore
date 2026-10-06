@@ -1,0 +1,9 @@
+.git
+.env
+.cache
+checkpoints
+pesos_oficiais
+mini_dataset
+__pycache__
+*.pyc
+.DS_Store

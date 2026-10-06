@@ -1,0 +1,5 @@
+# 2026-08-27 — benchmark CORRIGIDO (depth redimensionado + Eq.4 BiRefNet) e
+# faixa de K 3..300 (a 1..100 do paper apertava nosso modelo: mediana 75 de 100).
+# Dataset: RealBokeh test v2, com plano de foco e aberturas reanexados.
+kfix-rb|--lora-repo juliadollis/genrefocus-bokehnet-fase2-kfix --lora-file bokeh_step60000.safetensors --nome kfix-RB-eq4-k300 --saida juliadollis/bokeh-eval-rb-kfix --dataset-entrada juliadollis/bokeh-bench-realbokeh-test-v2 --limite 40 --long-side 512 --lote 10 --k-escala 3.0
+rotac-rb|--lora-repo juliadollis/genrefocus-bokehnet-fase2-rotac-only --lora-file bokeh_step44000.safetensors --nome rotac-only-RB-eq4-k300 --saida juliadollis/bokeh-eval-rb-rotac --dataset-entrada juliadollis/bokeh-bench-realbokeh-test-v2 --limite 40 --long-side 512 --lote 10 --k-escala 3.0
