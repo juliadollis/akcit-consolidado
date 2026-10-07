@@ -1,0 +1,39 @@
+# =============================================================================
+# docker-compose para o container de fine-tuning Riemanniano do DepthPro.
+# Simplifica GPU + montagem de volumes. Requer NVIDIA Container Toolkit no host.
+#
+# Uso:
+#   docker compose build
+#   docker compose run --rm trainer python scripts/test_geometry.py
+#   docker compose run --rm trainer python scripts/run_ablation.py --help
+# =============================================================================
+services:
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: riemann-depthpro:latest
+    # Acesso à GPU (NVIDIA Container Toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Memória compartilhada — DataLoaders com num_workers precisam de mais que o padrão.
+    # 32gb para a H100 com num_workers=16.
+    shm_size: "32gb"
+    ipc: host
+    # Volumes: substitua os caminhos do HOST (esquerda) pelos reais na sua máquina.
+    volumes:
+      - ./runs:/workspace/runs          # saídas (checkpoints, CSVs, curvatura)
+      - /caminho/no/host/data:/data     # datasets (Hypersim etc.)
+      - /caminho/no/host/models:/models # pesos (depth_pro.pt)
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Se for baixar FLUX/pesos gated em algum momento, passe o token do host:
+      # - HF_TOKEN=${HF_TOKEN}
+    working_dir: /workspace
+    # Mantém o container vivo para 'exec' interativo, se desejado:
+    # command: sleep infinity

@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "riemann-depthpro"
+version = "0.1.0"
+description = "Fine-tuning do DepthPro com Riemannian-Aware Loss (curvatura Gaussiana)"
+requires-python = ">=3.10"
+# Fonte única de dependências: requirements.txt (o Docker usa requirements.docker.txt)
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+packages = ["riemann"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }

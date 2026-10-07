@@ -1,0 +1,14 @@
+# Segredos: NUNCA commitar
+.env
+.env.*
+!.env.example
+
+# Saidas e logs (ficam no cluster)
+logs/
+runs/
+data/
+models/
+*.pt
+
+.DS_Store
+__pycache__/

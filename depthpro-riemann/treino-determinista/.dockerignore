@@ -1,0 +1,12 @@
+# Não copiar para a imagem
+**/__pycache__/
+**/*.pyc
+runs/
+data/
+models/
+*.zip
+*.pt
+*.safetensors
+.git/
+.venv/
+venv/

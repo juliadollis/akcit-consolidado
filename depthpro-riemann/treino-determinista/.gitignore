@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Artefatos de treino / dados / pesos
+runs/
+data/
+models/
+*.pt
+*.safetensors
+*.zip
+
+# SO / editor
+.DS_Store
