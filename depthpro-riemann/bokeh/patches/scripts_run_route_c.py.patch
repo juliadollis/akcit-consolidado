@@ -1,0 +1,14 @@
+--- scripts/run_route_c.py.antes_caminho_a	2026-09-11 09:45:58.000000000 -0300
++++ scripts/run_route_c.py	2026-09-17 09:31:46.000000000 -0300
+@@ -512,6 +512,11 @@
+         {"args": {k: (str(v) if isinstance(v, Path) else v)
+                   for k, v in vars(args).items()},
+          "provenance_base": provenance_base,
++         # O layout de `depth/` DECLARADO, para que a validação e a leitura não
++         # precisem inferi-lo contando arquivos. Um release por cena tem menos PNG que
++         # amostras de propósito, e contar arquivos confundiria isso com um release
++         # incompleto — que é a diferença entre publicar e não publicar.
++         "depth_layout": config.depth_layout.value,
+          "pairs_enumerated": len(pares)},
+         indent=2, ensure_ascii=False), encoding="utf-8")
+ 

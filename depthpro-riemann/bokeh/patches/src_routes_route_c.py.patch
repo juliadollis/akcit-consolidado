@@ -1,0 +1,35 @@
+--- src/routes/route_c.py.antes_caminho_a	2026-09-10 19:51:05.000000000 -0300
++++ src/routes/route_c.py	2026-09-17 09:42:33.000000000 -0300
+@@ -74,7 +74,7 @@
+     SampleRejected, focus_disparity_from_mask, reject,
+ )
+ from dataio import (
+-    ControlLabel, DEPTH_LONG_SIDE, FocusRegionRecord, KSource, Sample,
++    ControlLabel, DEPTH_LONG_SIDE, DepthLayout, FocusRegionRecord, KSource, Sample,
+     SampleProvenance, SampleRefs, SceneSplit, FileSampleWriter, encode_depth,
+ )
+ from qc.focus_region import (
+@@ -131,6 +131,13 @@
+ 
+     output_dir: Path
+     depth_long_side: int = DEPTH_LONG_SIDE
++    #: **Por cena.** Os níveis de uma cena são a MESMA AIF com aberturas diferentes — o
++    #: `image_focus` é byte a byte idêntico entre os níveis de uma cena, medido em 90
++    #: linhas de 9 cenas do espelho (`sources/lfdof.py:64-71`), e a máscara do §3.2(c)
++    #: é uma por cena pela mesma razão (`sources/level_selection.py:26-29`). Com o teto
++    #: de 4 níveis do paper são 3,51 amostras por cena no release publicado (15.423 em
++    #: 4.399), então `depth/` cai de 15.423 para 4.399 arquivos.
++    depth_layout: DepthLayout = DepthLayout.PER_SCENE
+     calibration_long_side: int = 512
+     k_min: float = K_MIN_DEFAULT
+     k_max: float = K_MAX_DEFAULT
+@@ -656,7 +663,8 @@
+     """Loop principal. Imprime o histograma de motivos de rejeição no fim, sempre."""
+     stats = RouteCStats()
+     log = RejectionLog(Path(config.output_dir) / "rejections.jsonl")
+-    writer = FileSampleWriter(config.output_dir, split=split)
++    writer = FileSampleWriter(config.output_dir, split=split,
++                              depth_layout=config.depth_layout)
+     done = writer.completed_ids()
+     if done:
+         print(f"[rota-c] retomando: {len(done)} amostras já gravadas serão puladas.")

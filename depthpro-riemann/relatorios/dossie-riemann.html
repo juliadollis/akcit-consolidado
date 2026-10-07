@@ -1,0 +1,914 @@
+<title>Termos Geométricos no DepthPro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  :root {
+    --ground: #f3f4f3;
+    --surface: #fcfcfb;
+    --surface-2: #e9ebe9;
+    --ink: #1a1d1b;
+    --ink-2: #4b514e;
+    --ink-3: #757b78;
+    --line: #c8ccc9;
+    --line-2: #dcdfdd;
+    --accent: #3c5d52;
+    --neg: #8d4232;
+
+    --f-text: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --f-data: "IBM Plex Mono", "SF Mono", Consolas, monospace;
+
+    --col: 1120px;
+    --read: 72ch;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #121413;
+      --surface: #1a1d1c;
+      --surface-2: #232726;
+      --ink: #e6e8e7;
+      --ink-2: #b2b8b5;
+      --ink-3: #868d8a;
+      --line: #333836;
+      --line-2: #272b2a;
+      --accent: #89b3a4;
+      --neg: #cf8e7c;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #121413;
+    --surface: #1a1d1c;
+    --surface-2: #232726;
+    --ink: #e6e8e7;
+    --ink-2: #b2b8b5;
+    --ink-3: #868d8a;
+    --line: #333836;
+    --line-2: #272b2a;
+    --accent: #89b3a4;
+    --neg: #cf8e7c;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--f-text);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .doc {
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: 0 32px 110px;
+  }
+
+  /* ---- folha de rosto ---- */
+
+  .rosto {
+    padding: 64px 0 28px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 0;
+  }
+
+  .rosto .kind {
+    font-family: var(--f-data);
+    font-size: 11.5px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0 0 22px;
+  }
+
+  h1 {
+    font-family: var(--f-text);
+    font-weight: 600;
+    font-size: clamp(1.7rem, 3.6vw, 2.35rem);
+    line-height: 1.16;
+    letter-spacing: -0.008em;
+    margin: 0 0 14px;
+    max-width: 30ch;
+    text-wrap: balance;
+  }
+
+  .rosto .scope {
+    font-size: 16px;
+    color: var(--ink-2);
+    max-width: var(--read);
+    margin: 0;
+  }
+
+  dl.meta {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 5px 22px;
+    margin: 26px 0 0;
+    font-size: 14px;
+  }
+
+  dl.meta dt {
+    font-family: var(--f-data);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-top: 4px;
+  }
+
+  dl.meta dd {
+    margin: 0;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---- sumário ---- */
+
+  nav.toc {
+    border-bottom: 1px solid var(--line);
+    padding: 22px 0 26px;
+    margin-bottom: 48px;
+  }
+
+  nav.toc h2 {
+    font-family: var(--f-data);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    font-weight: 400;
+    margin: 0 0 14px;
+    border: none;
+    padding: 0;
+  }
+
+  nav.toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    columns: 2;
+    column-gap: 48px;
+    max-width: 780px;
+    font-size: 14.5px;
+  }
+
+  nav.toc li {
+    margin: 0 0 6px;
+    display: flex;
+    gap: 10px;
+  }
+
+  nav.toc .num {
+    font-family: var(--f-data);
+    font-size: 12.5px;
+    color: var(--ink-3);
+    min-width: 2.2em;
+    padding-top: 2px;
+  }
+
+  nav.toc a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid transparent; }
+  nav.toc a:hover { color: var(--ink); border-bottom-color: var(--line); }
+
+  /* ---- seções ---- */
+
+  section { margin: 0 0 54px; scroll-margin-top: 16px; }
+
+  h2 {
+    font-family: var(--f-text);
+    font-size: 1.32rem;
+    font-weight: 600;
+    line-height: 1.26;
+    margin: 0 0 18px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    gap: 14px;
+    align-items: baseline;
+  }
+
+  h2 .num {
+    font-family: var(--f-data);
+    font-size: 0.78em;
+    font-weight: 400;
+    color: var(--ink-3);
+    min-width: 1.6em;
+  }
+
+  h3 {
+    font-family: var(--f-text);
+    font-size: 1.04rem;
+    font-weight: 600;
+    margin: 32px 0 10px;
+  }
+
+  h3 .num {
+    font-family: var(--f-data);
+    font-size: 0.8em;
+    font-weight: 400;
+    color: var(--ink-3);
+    margin-right: 9px;
+  }
+
+  p { max-width: var(--read); margin: 0 0 15px; }
+  p.full { max-width: none; }
+
+  ul, ol.body { max-width: var(--read); padding-left: 22px; margin: 0 0 16px; }
+  li { margin-bottom: 7px; }
+
+  /* ---- tabelas ---- */
+
+  figure {
+    margin: 22px 0 26px;
+    max-width: none;
+  }
+
+  figcaption {
+    font-family: var(--f-data);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+    margin: 0 0 8px;
+    text-transform: uppercase;
+  }
+
+  figcaption b {
+    color: var(--ink-2);
+    font-weight: 500;
+  }
+
+  .scroller { overflow-x: auto; border-top: 1.5px solid var(--ink); border-bottom: 1.5px solid var(--ink); }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13.5px;
+    background: transparent;
+  }
+
+  th, td {
+    padding: 7px 14px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  thead th {
+    font-family: var(--f-data);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--ink);
+    vertical-align: bottom;
+  }
+
+  tbody td {
+    font-family: var(--f-data);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--line-2);
+  }
+
+  tbody tr:last-child td { border-bottom: none; }
+
+  th:first-child, td:first-child {
+    text-align: left;
+    white-space: normal;
+    min-width: 172px;
+  }
+
+  th.l, td.l { text-align: left; white-space: normal; }
+
+  tbody td:first-child { font-family: var(--f-text); font-size: 14.5px; color: var(--ink); }
+
+  tr.sep td { border-top: 1px solid var(--line); }
+  tr.base td { font-style: italic; }
+  tr.base td:first-child { font-style: italic; }
+
+  td.neg { color: var(--neg); }
+  td.em { color: var(--ink); font-weight: 500; }
+
+  .nota {
+    font-size: 14px;
+    line-height: 1.52;
+    color: var(--ink-2);
+    max-width: var(--read);
+    margin: 0 0 20px;
+    padding-left: 16px;
+    border-left: 2px solid var(--line);
+  }
+
+  .nota .rot {
+    font-family: var(--f-data);
+    font-size: 10.5px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  pre {
+    font-family: var(--f-data);
+    font-size: 12.5px;
+    line-height: 1.6;
+    background: var(--surface-2);
+    padding: 13px 16px;
+    overflow-x: auto;
+    margin: 0 0 16px;
+    color: var(--ink-2);
+    max-width: var(--read);
+  }
+
+  code {
+    font-family: var(--f-data);
+    font-size: 0.87em;
+    color: var(--ink);
+  }
+
+  pre code { font-size: inherit; }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 22px;
+    font-size: 13.5px;
+    color: var(--ink-3);
+    max-width: var(--read);
+    line-height: 1.55;
+  }
+
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+
+<div class="doc">
+
+<header class="rosto">
+  <p class="kind">Relatório técnico interno</p>
+  <h1>Termos geométricos riemannianos na perda do DepthPro: avaliação em três conjuntos</h1>
+  <p class="scope">Mede se termos derivados da geometria diferencial da superfície de
+  profundidade — gradiente, tensor métrico, elemento de arco, normal e curvatura gaussiana
+  — melhoram a qualidade de borda do DepthPro quando somados à perda berHu durante o
+  fine-tune.</p>
+
+  <dl class="meta">
+    <dt>conjuntos</dt><dd>Spring (teste e validação), DIODE val interno, DIODE val externo, RealDOF</dd>
+    <dt>avaliações</dt><dd>311 pares checkpoint × conjunto</dd>
+    <dt>treinos</dt><dd>campanha de seeds (n=6 por braço) e ablação (42–47, 6 configs cada)</dd>
+    <dt>data</dt><dd>06/10/2026</dd>
+  </dl>
+</header>
+
+<nav class="toc">
+  <h2>Sumário</h2>
+  <ol>
+    <li><span class="num">1</span><a href="#protocolo">Protocolo</a></li>
+    <li><span class="num">2</span><a href="#spring">Spring, split de teste</a></li>
+    <li><span class="num">3</span><a href="#diode-in">DIODE interno</a></li>
+    <li><span class="num">4</span><a href="#diode-out">DIODE externo</a></li>
+    <li><span class="num">5</span><a href="#sintese">Síntese entre conjuntos</a></li>
+    <li><span class="num">6</span><a href="#ablacao">Ablação dos termos isolados</a></li>
+    <li><span class="num">7</span><a href="#bokeh">Aplicação: síntese de bokeh</a></li>
+    <li><span class="num">8</span><a href="#limites">Limitações</a></li>
+    <li><span class="num">9</span><a href="#ativos">Estado dos artefatos</a></li>
+  </ol>
+</nav>
+
+<!-- ===================== 1 ===================== -->
+
+<section id="protocolo">
+  <h2><span class="num">1</span>Protocolo</h2>
+
+  <h3><span class="num">1.1</span>Perda e braços</h3>
+
+  <p>A perda base é berHu com peso 0,7. Cada braço soma um ou mais termos geométricos
+  calculados sobre a superfície retroprojetada
+  <code>S(u,v) = ((u−cx)D/fx, (v−cy)D/fy, D)</code>, em metros. Os termos são:
+  <code>grad</code> (primeira ordem), <code>metric</code> (tensor g, primeira ordem
+  quadrática), <code>geod</code> (elemento de arco, primeira ordem), <code>normal</code>
+  (primeira ordem, normalizado) e <code>gauss</code> (curvatura gaussiana
+  <code>K = (LN−M²)/(EG−F²)</code>, segunda ordem).</p>
+
+  <p>Os braços B1 isolam um termo; os B3 somam <code>normal</code> e <code>gauss</code>;
+  os B7 usam pesos altos em <code>gauss</code> ou <code>normal</code>. O controle é berHu
+  puro, treinado com a mesma seed, mesmo cronograma e mesmo split.</p>
+
+  <h3><span class="num">1.2</span>Métricas de borda</h3>
+
+  <p>Três quantidades, e a diferença entre elas decide várias leituras adiante.
+  <code>boundary_fscore</code> é o F-score num limiar fixo, 0,08 × o percentil 99 do
+  gradiente. <code>boundary_fmax</code> é o F no melhor limiar de cada modelo.
+  <code>boundary_f_auc</code> integra sobre os limiares. Um braço que sobe só no
+  <code>fscore</code> ganhou recalibração do limiar, não borda melhor.</p>
+
+  <h3><span class="num">1.3</span>Agregação e pareamento</h3>
+
+  <p>O agregado vem de <code>Trainer.validate()</code> com batch 8 — o mesmo que gerou os
+  <code>test_metrics.json</code> históricos, portanto diretamente comparável com eles.
+  O batch importa: <code>validate</code> tira a média das métricas por batch, então mudar
+  o batch muda o agregado.</p>
+
+  <p>Toda comparação com o controle é <strong>pareada por seed</strong>. A seed fixa a
+  inicialização e a ordem dos dados nos dois braços, o que remove a variação do sorteio.
+  Relatamos a média da diferença, o desvio entre seeds e a contagem de seeds a favor.</p>
+
+  <h3><span class="num">1.4</span>Conjuntos</h3>
+
+  <figure>
+    <figcaption><b>Tabela 1.</b> Conjuntos de avaliação. O n efetivo é o número de grupos,
+    não de imagens.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>conjunto</th><th>imagens</th><th>grupos</th><th>agrupamento</th><th>pixels válidos</th><th>profundidade p5–p95</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Spring teste</td><td>485</td><td class="em">13</td><td class="l">sequência</td><td class="l">com máscara</td><td class="l">—</td></tr>
+          <tr><td>Spring validação</td><td>184</td><td>6</td><td class="l">sequência</td><td class="l">com máscara</td><td class="l">—</td></tr>
+          <tr><td>DIODE val interno</td><td>325</td><td class="em">10</td><td class="l">scan</td><td class="l">99,8% med, mín 87,5%</td><td class="l">4,57 – 8,35 m</td></tr>
+          <tr><td>DIODE val externo</td><td>446</td><td class="em">10</td><td class="l">scan</td><td class="l">80,1% med, mín 32,8%</td><td class="l">4,73 – 29,22 m</td></tr>
+          <tr><td>RealDOF</td><td>50</td><td>50</td><td class="l">imagem</td><td class="l">n/a</td><td class="l">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p class="nota"><span class="rot">Nota sobre o agrupamento</span>
+  No DIODE, recortes do mesmo scan vêm da mesma posição do scanner e são altamente
+  correlacionados; tratá-los como independentes infla a significância. Os grupos são
+  desbalanceados: no interno vão de 27 a 73 amostras, no externo de 44 a 61.</p>
+</section>
+
+<!-- ===================== 2 ===================== -->
+
+<section id="spring">
+  <h2><span class="num">2</span>Spring, split de teste</h2>
+
+  <figure>
+    <figcaption><b>Tabela 2.</b> Campanha de seeds no Spring teste, n=6 (seeds 0–5). O
+    braço de 768 px teve 3 seeds.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>braço</th><th class="l">perda</th><th>F-borda</th><th>fmax</th><th>f_auc</th><th>AbsRel</th><th>delta1</th><th>RMSE</th></tr>
+        </thead>
+        <tbody>
+          <tr class="base"><td>zero-shot</td><td class="l">sem fine-tune</td><td>0,5402</td><td>0,7674</td><td>0,5641</td><td>0,3602</td><td>0,6594</td><td>5,4002</td></tr>
+          <tr><td>Bgrad</td><td class="l">berHu + grad 0,3</td><td class="em">0,6091</td><td class="em">0,7882</td><td>0,6253</td><td>0,2561</td><td>0,6937</td><td>4,3492</td></tr>
+          <tr><td>Bgeod</td><td class="l">berHu + geod 0,1</td><td>0,5984</td><td>0,7790</td><td class="em">0,6308</td><td>0,2481</td><td>0,6950</td><td>4,2336</td></tr>
+          <tr><td>B0 berHu</td><td class="l">controle</td><td>0,5954</td><td>0,7791</td><td>0,6254</td><td>0,2509</td><td>0,6946</td><td>4,2433</td></tr>
+          <tr><td>B0 berHu 768 px</td><td class="l">controle, n=3</td><td>0,5918</td><td>0,7463</td><td>0,6041</td><td>0,2500</td><td>0,7000</td><td>4,1258</td></tr>
+          <tr><td>Bmetric</td><td class="l">berHu + metric 0,2</td><td>0,5904</td><td>0,7681</td><td>0,6202</td><td>0,2489</td><td>0,6958</td><td>4,2604</td></tr>
+          <tr class="sep"><td>B3 normal+gauss, teto 50</td><td class="l">+ normal 0,9 + gauss 0,45</td><td>0,5765</td><td>0,7713</td><td>0,5906</td><td>0,2733</td><td>0,6960</td><td>4,4016</td></tr>
+          <tr><td>B3 normal+gauss, teto 5</td><td class="l">+ normal 0,9 + gauss 0,45</td><td>0,5723</td><td>0,7690</td><td>0,5875</td><td>0,2778</td><td>0,6916</td><td>4,4110</td></tr>
+          <tr><td>B3 normal+gauss, teto 1000</td><td class="l">+ normal 0,9 + gauss 0,45</td><td>0,5696</td><td>0,7628</td><td>0,5804</td><td>0,3104</td><td>0,6750</td><td>4,7995</td></tr>
+          <tr class="sep"><td>B1 gauss, teto 5</td><td class="l">berHu + gauss 0,45</td><td>0,5523</td><td>0,7560</td><td>0,5872</td><td>0,2687</td><td>0,6928</td><td>4,5229</td></tr>
+          <tr><td>B1 gauss, teto 1000</td><td class="l">berHu + gauss 0,45</td><td class="neg">0,5378</td><td class="neg">0,7161</td><td>0,5697</td><td>0,2520</td><td>0,7057</td><td>4,3756</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <figure>
+    <figcaption><b>Tabela 3.</b> Contraste pareado por seed contra o controle berHu.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>braço</th><th>n</th><th>Δ F-borda</th><th>desvio entre seeds</th><th>seeds a favor</th><th>Δ fmax</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Bgrad</td><td>6</td><td class="em">+0,0137</td><td>0,0084</td><td class="em">6/6</td><td>+0,0091</td></tr>
+          <tr><td>Bgeod</td><td>6</td><td>+0,0030</td><td>0,0072</td><td>4/6</td><td>−0,0000</td></tr>
+          <tr><td>B0 berHu 768 px</td><td>3</td><td>−0,0026</td><td>0,0094</td><td>2/3</td><td class="neg">−0,0344</td></tr>
+          <tr><td>Bmetric</td><td>6</td><td>−0,0050</td><td>0,0038</td><td>1/6</td><td>−0,0109</td></tr>
+          <tr class="sep"><td>B3 normal+gauss, teto 50</td><td>6</td><td>−0,0190</td><td>0,0263</td><td>2/6</td><td>−0,0078</td></tr>
+          <tr><td>B3 normal+gauss, teto 5</td><td>6</td><td>−0,0231</td><td>0,0223</td><td>1/6</td><td>−0,0101</td></tr>
+          <tr><td>B3 normal+gauss, teto 1000</td><td>6</td><td>−0,0258</td><td>0,0168</td><td>1/6</td><td>−0,0163</td></tr>
+          <tr class="sep"><td>B1 gauss, teto 5</td><td>6</td><td class="neg">−0,0431</td><td>0,0183</td><td class="neg">0/6</td><td>−0,0231</td></tr>
+          <tr><td>B1 gauss, teto 1000</td><td>6</td><td class="neg">−0,0576</td><td>0,0042</td><td class="neg">0/6</td><td class="neg">−0,0630</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Em 51 comparações pareadas há 17 vitórias. Restringindo aos braços que contêm o termo
+  <code>gauss</code>: 4 em 30.</p>
+
+  <p>Todo braço treinado supera o zero-shot, e em AbsRel a diferença é larga, 0,3602 contra
+  aproximadamente 0,25. O <code>grad</code> é o único braço com todas as seeds a favor e o
+  único que desloca o <code>fmax</code>; esse teto de aproximadamente 0,77 não cedeu a seis
+  configurações de perda nem ao aumento de resolução para 768 px. O B0 a 768 px ilustra a
+  distinção da seção 1.2: sobe no <code>fscore</code> e cai 0,0344 no <code>fmax</code>,
+  o que caracteriza recalibração de limiar.</p>
+</section>
+
+<!-- ===================== 3 ===================== -->
+
+<section id="diode-in">
+  <h2><span class="num">3</span>DIODE interno</h2>
+
+  <figure>
+    <figcaption><b>Tabela 4.</b> DIODE val interno, 325 imagens em 10 scans, n=6.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>braço</th><th>AbsRel</th><th>delta1</th><th>RMSE</th><th>F-borda</th><th>fmax</th></tr>
+        </thead>
+        <tbody>
+          <tr class="base"><td>zero-shot</td><td class="em">0,0647</td><td class="em">0,9400</td><td class="em">0,4189</td><td>0,5036</td><td>0,6714</td></tr>
+          <tr><td>Bgeod</td><td>0,1093</td><td>0,8907</td><td>0,5737</td><td class="em">0,5573</td><td>0,6830</td></tr>
+          <tr><td>Bmetric</td><td>0,1170</td><td>0,8823</td><td>0,6044</td><td>0,5503</td><td>0,6779</td></tr>
+          <tr><td>B0 berHu 768 px</td><td>0,1185</td><td>0,8780</td><td>0,6122</td><td>0,5456</td><td>0,6639</td></tr>
+          <tr><td>B3 normal+gauss, teto 5</td><td>0,0931</td><td>0,9098</td><td>0,5161</td><td>0,5455</td><td>0,6913</td></tr>
+          <tr><td>B0 berHu</td><td>0,1121</td><td>0,8871</td><td>0,5853</td><td>0,5439</td><td>0,6695</td></tr>
+          <tr><td>Bgrad</td><td>0,0966</td><td>0,9044</td><td>0,5266</td><td>0,5437</td><td>0,6806</td></tr>
+          <tr><td>B3 normal+gauss, teto 50</td><td>0,0959</td><td>0,9071</td><td>0,5311</td><td>0,5427</td><td>0,6916</td></tr>
+          <tr><td>B3 normal+gauss, teto 1000</td><td>0,0940</td><td>0,9069</td><td>0,5235</td><td>0,5416</td><td class="em">0,6932</td></tr>
+          <tr class="sep"><td>B1 gauss, teto 5</td><td>0,0951</td><td>0,9111</td><td>0,5200</td><td class="neg">0,4960</td><td>0,6296</td></tr>
+          <tr><td>B1 gauss, teto 1000</td><td>0,1181</td><td>0,8780</td><td>0,5990</td><td class="neg">0,4689</td><td class="neg">0,5952</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Dois efeitos em direções opostas. Em profundidade, o modelo sem fine-tune é melhor que
+  todos os braços treinados: 0,0647 de AbsRel contra 0,0931 do melhor deles, cerca de 44%
+  de diferença, e o mesmo vale para delta1 e RMSE. Em borda, todo braço treinado supera o
+  zero-shot, 0,5416 a 0,5573 contra 0,5036.</p>
+
+  <p>A interpretação compatível é que o fine-tune no Spring — sintético, de rua, com
+  profundidade longa — ensinou a localizar descontinuidades e degradou a escala métrica,
+  medida aqui num interior real de 4 a 8 metros.</p>
+</section>
+
+<!-- ===================== 4 ===================== -->
+
+<section id="diode-out">
+  <h2><span class="num">4</span>DIODE externo</h2>
+
+  <figure>
+    <figcaption><b>Tabela 5.</b> DIODE val externo, 446 imagens em 10 scans, n=6. A coluna
+    do interno repete a Tabela 4 para comparação direta.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>braço</th><th>AbsRel</th><th>delta1</th><th>F-borda externo</th><th>F-borda interno</th><th>Δ vs controle</th></tr>
+        </thead>
+        <tbody>
+          <tr class="base"><td>zero-shot</td><td>0,4073</td><td class="em">0,6873</td><td>0,4139</td><td>0,5036</td><td>—</td></tr>
+          <tr><td>Bgrad</td><td class="em">0,4045</td><td>0,6698</td><td class="em">0,4604</td><td>0,5437</td><td>+0,0026</td></tr>
+          <tr><td>B0 berHu 768 px</td><td>0,4491</td><td>0,6439</td><td>0,4602</td><td>0,5456</td><td>+0,0024</td></tr>
+          <tr><td>B0 berHu</td><td>0,4444</td><td>0,6472</td><td>0,4579</td><td>0,5439</td><td>—</td></tr>
+          <tr><td>Bmetric</td><td>0,4480</td><td>0,6452</td><td>0,4560</td><td>0,5503</td><td>−0,0018</td></tr>
+          <tr><td>B3 normal+gauss, teto 50</td><td>0,4116</td><td>0,6676</td><td>0,4478</td><td>0,5427</td><td>−0,0100</td></tr>
+          <tr><td>Bgeod</td><td>0,4497</td><td>0,6462</td><td>0,4462</td><td class="em">0,5573</td><td class="neg">−0,0116</td></tr>
+          <tr><td>B3 normal+gauss, teto 1000</td><td>0,4155</td><td>0,6619</td><td>0,4443</td><td>0,5416</td><td>−0,0136</td></tr>
+          <tr><td>B3 normal+gauss, teto 5</td><td>0,4180</td><td>0,6640</td><td>0,4382</td><td>0,5455</td><td>−0,0197</td></tr>
+          <tr class="sep"><td>B1 gauss, teto 5</td><td>0,4367</td><td>0,6526</td><td>0,4335</td><td>0,4960</td><td class="neg">−0,0244</td></tr>
+          <tr><td>B1 gauss, teto 1000</td><td>0,4422</td><td>0,6408</td><td class="neg">0,4137</td><td>0,4689</td><td class="neg">−0,0441</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p class="nota"><span class="rot">Correção à seção 3</span>
+  A degradação de profundidade pelo fine-tune, descrita na seção 3, não se generaliza. No
+  externo o zero-shot faz 0,4073 de AbsRel contra 0,4045 a 0,4497 dos treinados: está no
+  meio do grupo, e o <code>Bgrad</code> o supera. O efeito observado no interno é
+  específico da faixa estreita de profundidade, não uma propriedade do fine-tune.</p>
+
+  <p>O <code>geod</code>, melhor braço do interno com +0,0134 e 5 seeds a favor de 6, passa
+  a −0,0116 com 1 de 6 no externo. Inversão de sinal entre domínios do mesmo conjunto
+  caracteriza interação com o dado, não efeito do termo.</p>
+</section>
+
+<!-- ===================== 5 ===================== -->
+
+<section id="sintese">
+  <h2><span class="num">5</span>Síntese entre conjuntos</h2>
+
+  <figure>
+    <figcaption><b>Tabela 6.</b> Δ F-borda pareado contra o controle, nos três conjuntos.
+    Entre parênteses, seeds a favor.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>braço</th><th>Spring teste</th><th>DIODE interno</th><th>DIODE externo</th><th class="l">comportamento</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Bgrad</td><td class="em">+0,0137 (6/6)</td><td>−0,0002 (3/6)</td><td>+0,0026 (4/6)</td><td class="l">nunca negativo; efeito pequeno</td></tr>
+          <tr><td>Bgeod</td><td>+0,0030 (4/6)</td><td class="em">+0,0134 (5/6)</td><td class="neg">−0,0116 (1/6)</td><td class="l">inverte de sinal</td></tr>
+          <tr><td>Bmetric</td><td>−0,0050 (1/6)</td><td>+0,0065 (4/6)</td><td>−0,0018 (3/6)</td><td class="l">dentro do ruído</td></tr>
+          <tr><td>B0 berHu 768 px</td><td>−0,0026 (2/3)</td><td>+0,0071 (2/3)</td><td>+0,0040 (1/3)</td><td class="l">n=3, inconclusivo</td></tr>
+          <tr class="sep"><td>B3 normal+gauss, teto 5</td><td class="neg">−0,0231 (1/6)</td><td>+0,0017 (3/6)</td><td class="neg">−0,0197 (1/6)</td><td class="l">empate ou perda</td></tr>
+          <tr><td>B3 normal+gauss, teto 50</td><td class="neg">−0,0190 (2/6)</td><td>−0,0012 (2/6)</td><td>−0,0100 (3/6)</td><td class="l">empate ou perda</td></tr>
+          <tr><td>B3 normal+gauss, teto 1000</td><td class="neg">−0,0258 (1/6)</td><td>−0,0023 (4/6)</td><td>−0,0136 (2/6)</td><td class="l">empate ou perda</td></tr>
+          <tr class="sep"><td>B1 gauss, teto 5</td><td class="neg">−0,0431 (0/6)</td><td class="neg">−0,0479 (0/6)</td><td class="neg">−0,0244 (0/6)</td><td class="l">perda em todo conjunto</td></tr>
+          <tr><td>B1 gauss, teto 1000</td><td class="neg">−0,0576 (0/6)</td><td class="neg">−0,0750 (0/6)</td><td class="neg">−0,0441 (1/6)</td><td class="l">perda em todo conjunto</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>Os dois braços que isolam a curvatura somam 36 comparações pareadas nos três conjuntos
+  e registram uma única seed a favor. A magnitude vai de 0,024 a 0,075 em F-borda, com
+  desvio entre seeds de 0,004 a 0,032 — uma a duas ordens de grandeza acima do ruído de
+  reexecução medido na seção 8. É o único efeito do estudo que não muda de sinal com o
+  conjunto, o domínio ou a faixa de profundidade.</p>
+
+  <p>Os braços B3, que somam <code>normal</code> à curvatura, ficam entre −0,026 e +0,002
+  do controle, enquanto os B1, que a isolam, caem de 0,024 a 0,075. A separação entre as
+  duas famílias é maior que a dispersão interna de cada uma. O <code>normal</code> não
+  melhora o controle em nenhum conjunto; o que ele faz é anular o efeito da curvatura.</p>
+
+  <p>Nenhum termo produz ganho que sobreviva aos três conjuntos. O <code>grad</code> é o
+  único que nunca aparece negativo, mas seu efeito fora do Spring é de 0,0026 e −0,0002,
+  dentro do desvio entre seeds.</p>
+</section>
+
+<!-- ===================== 6 ===================== -->
+
+<section id="ablacao">
+  <h2><span class="num">6</span>Ablação dos termos isolados</h2>
+
+  <p>Código de ablação de terceiro, executado como entregue, com o dataset trocado para
+  Spring e a focal informada (2585,859, mediana das 37 sequências). Defaults preservados:
+  <code>--filter B0 B1 B7</code>, 30 épocas, batch 2 com acumulação 4,
+  <code>--align-mode detach</code>, <code>--gauss-clamp-metrico 5.0</code>. É a única parte
+  do estudo que testa os cinco termos em isolamento, um treino por termo.</p>
+
+  <figure>
+    <figcaption><b>Tabela 7.</b> F-borda dos checkpoints da ablação sob o nosso protocolo
+    de avaliação, quatro splits. n=1 por braço.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>braço</th><th class="l">ordem do termo</th><th>Spring teste</th><th>Spring val</th><th>DIODE interno</th><th>DIODE externo</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>+normal</td><td class="l">1ª, normalizado</td><td>0,5487</td><td class="neg">0,5086</td><td class="em">0,5927</td><td class="neg">0,4251</td></tr>
+          <tr><td>+metric</td><td class="l">1ª, quadrático</td><td class="em">0,5904</td><td class="em">0,6261</td><td>0,5412</td><td>0,4939</td></tr>
+          <tr><td>+geod</td><td class="l">1ª, elemento de arco</td><td>0,5594</td><td>0,6177</td><td>0,5101</td><td class="em">0,5409</td></tr>
+          <tr><td>+grad</td><td class="l">1ª</td><td class="neg">0,5446</td><td>0,6079</td><td class="neg">0,4761</td><td>0,5070</td></tr>
+          <tr><td>B0 berHu</td><td class="l">controle</td><td>0,5793</td><td>0,5617</td><td>0,5061</td><td>0,4798</td></tr>
+          <tr><td>+gauss</td><td class="l">2ª, curvatura</td><td>0,5566</td><td>0,5453</td><td class="neg">0,4444</td><td class="neg">0,4610</td></tr>
+          <tr class="sep"><td>B7 gauss dominante</td><td class="l">2ª, peso alto</td><td>0,5665</td><td>0,6070</td><td>0,5128</td><td>0,4713</td></tr>
+          <tr><td>B7 gauss pesado</td><td class="l">2ª, peso muito alto</td><td>0,5793</td><td>0,5936</td><td>0,5181</td><td>0,4228</td></tr>
+          <tr><td>B7 normal dominante</td><td class="l">1ª, peso alto</td><td>0,5738</td><td>0,5674</td><td>0,5215</td><td>0,4089</td></tr>
+          <tr><td>B7 campeão anterior</td><td class="l">combinação prévia</td><td>0,5824</td><td>0,5559</td><td>0,5293</td><td>0,3841</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>A Tabela 7 não ordena termos. O <code>+grad</code> fica +0,046 acima do controle na
+  validação do Spring e −0,035 abaixo no teste do mesmo Spring, com o mesmo checkpoint. O
+  <code>+normal</code> é o melhor braço do DIODE interno, +0,0866, e um dos piores do
+  externo, −0,0547. Com n=1 e ruído de reexecução de 0,0148, só sobrevive o que é grande e
+  repetido: o <code>+gauss</code> está no fundo em três dos quatro splits.</p>
+
+  <h3><span class="num">6.1</span>Avaliação interna do script, para registro</h3>
+
+  <p class="nota"><span class="rot">Incomparável com as tabelas acima</span>
+  A ablação avalia a validação (184 imagens, 6 cenas) sem máscara de validade no F-borda,
+  com <code>align detach</code> e 30 épocas; a campanha de seeds usa o teste (485 imagens,
+  13 cenas) com máscara, <code>align full</code> e até 100 épocas com early stop. A
+  evidência de que a diferença é de protocolo é o zero-shot: 0,4861 ali contra 0,5402 na
+  nossa medição, mesmo modelo sem fine-tune.</p>
+
+  <figure>
+    <figcaption><b>Tabela 8.</b> Saída da avaliação interna do script de ablação, split de
+    validação, sem máscara.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>config</th><th>F-borda</th><th>fmax</th><th>f_auc</th><th>AbsRel</th><th>delta1</th><th>Δ vs controle</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>+grad</td><td class="em">0,5314</td><td>0,6912</td><td>0,5540</td><td>0,3341</td><td>0,5194</td><td>+0,0302</td></tr>
+          <tr><td>+metric</td><td>0,5287</td><td>0,6593</td><td>0,5515</td><td>0,2639</td><td>0,6341</td><td>+0,0276</td></tr>
+          <tr><td>+geod</td><td>0,5163</td><td>0,6680</td><td>0,5472</td><td>0,2893</td><td>0,5937</td><td>+0,0152</td></tr>
+          <tr><td>B0 berHu</td><td>0,5011</td><td>0,6485</td><td>0,5326</td><td>0,2645</td><td>0,6441</td><td>—</td></tr>
+          <tr><td>gauss pesado</td><td>0,4940</td><td>0,6181</td><td>0,5087</td><td>0,2954</td><td>0,6184</td><td>−0,0071</td></tr>
+          <tr class="base"><td>zero-shot</td><td>0,4861</td><td>0,6201</td><td>0,5132</td><td>0,3075</td><td>0,5990</td><td>−0,0150</td></tr>
+          <tr><td>+normal</td><td class="neg">0,4315</td><td>0,5579</td><td>0,4518</td><td>0,3051</td><td>0,5989</td><td class="neg">−0,0696</td></tr>
+          <tr><td>+gauss</td><td class="neg">0,4311</td><td>0,6205</td><td>0,4669</td><td>0,2921</td><td>0,6267</td><td class="neg">−0,0700</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3><span class="num">6.2</span>Confirmação dos candidatos sob o nosso protocolo</h3>
+
+  <figure>
+    <figcaption><b>Tabela 9.</b> Os três termos que a ablação indicou, reexecutados no
+    teste com máscara, <code>align full</code>, 100 épocas e n=6.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>termo</th><th>ablação, n=1, validação</th><th>confirmação, n=6, teste</th><th>seeds a favor</th><th class="l">resultado</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>grad</td><td>+0,0302</td><td class="em">+0,0137</td><td class="em">6/6</td><td class="l">reproduz, magnitude menor</td></tr>
+          <tr><td>metric</td><td>+0,0276</td><td class="neg">−0,0050</td><td>1/6</td><td class="l">não reproduz</td></tr>
+          <tr><td>geod</td><td>+0,0152</td><td>+0,0030</td><td>4/6</td><td class="l">dentro do ruído</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <h3><span class="num">6.3</span>Estado: treinada a n=6, avaliada a n=1</h3>
+
+  <p>As seeds 43 a 47 foram treinadas nesta campanha — 30 treinos, 6 configs por seed,
+  código inalterado, apenas a seed muda. Com a seed 42 original, a ablação está em n=6
+  treinado. Nenhuma das seeds novas foi avaliada nos conjuntos: as Tabelas 7 a 9 continuam
+  sendo n=1. Avaliá-las é o passo que converteria a ablação de indicação em resultado.</p>
+</section>
+
+<!-- ===================== 7 ===================== -->
+
+<section id="bokeh">
+  <h2><span class="num">7</span>Aplicação: síntese de bokeh</h2>
+
+  <p>Teste de utilidade a jusante: se a profundidade afinada tem borda melhor, ela deveria
+  gerar bokeh mais próximo de uma fotografia real. O renderizador recebe uma imagem
+  all-in-focus e um mapa de profundidade e é comparado com a foto com bokeh da mesma cena.
+  Três fontes de profundidade e duas calibrações, nas 50 imagens do RealDOF.</p>
+
+  <p>Antes de entrar no renderizador, a disparidade de cada braço é alinhada à do modelo
+  base por mínimos quadrados, por amostra. A escala absoluta nunca entrou na perda — o
+  treino alinhava por transformação afim —, e a disparidade dos braços sai em 0,574 da base
+  com fator variável por imagem, de 0,271 a 0,843. Sem alinhar, os K não seriam comparáveis
+  entre braços.</p>
+
+  <figure>
+    <figcaption><b>Tabela 10.</b> Seis condições, n=50 em todas. K fixo = 266,78, a mediana
+    dos K escolhidos pela busca na condição base.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>fonte de profundidade</th><th class="l">calibração</th><th>SSIM média ± dp</th><th>SSIM mediana</th><th>PSNR média ± dp</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>DepthPro base</td><td class="l">busca de K (SSIM)</td><td>0,8904 ± 0,0688</td><td>0,9005</td><td>26,75 ± 2,60</td></tr>
+          <tr><td>Bgrad seed 0</td><td class="l">busca de K</td><td>0,8917 ± 0,0694</td><td>0,9043</td><td>26,77 ± 2,61</td></tr>
+          <tr><td>Bgeod seed 0</td><td class="l">busca de K</td><td>0,8926 ± 0,0686</td><td>0,9052</td><td>26,77 ± 2,60</td></tr>
+          <tr class="sep"><td>DepthPro base</td><td class="l">K fixo</td><td>0,8103 ± 0,1041</td><td>0,8306</td><td>25,01 ± 2,72</td></tr>
+          <tr><td>Bgrad seed 0</td><td class="l">K fixo</td><td>0,8163 ± 0,1037</td><td>0,8391</td><td>25,11 ± 2,74</td></tr>
+          <tr><td>Bgeod seed 0</td><td class="l">K fixo</td><td>0,8173 ± 0,1031</td><td>0,8357</td><td>25,13 ± 2,74</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <figure>
+    <figcaption><b>Tabela 11.</b> Contraste pareado por imagem contra a condição base
+    correspondente.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>comparação</th><th>Δ SSIM média ± dp</th><th>vence em</th><th>Δ PSNR</th><th>t pareado</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Bgrad − base, busca</td><td>+0,00133 ± 0,00954</td><td>24/50</td><td>+0,013 dB</td><td>+0,99</td></tr>
+          <tr><td>Bgeod − base, busca</td><td>+0,00218 ± 0,00866</td><td>27/50</td><td>+0,020 dB</td><td>+1,78</td></tr>
+          <tr><td>Bgrad − base, K fixo</td><td>+0,00605 ± 0,01998</td><td>28/50</td><td>+0,096 dB</td><td>+2,14</td></tr>
+          <tr><td>Bgeod − base, K fixo</td><td>+0,00705 ± 0,01914</td><td>30/50</td><td>+0,123 dB</td><td>+2,60</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p>O desvio entre imagens, 0,07 a 0,10, é uma ordem de grandeza maior que a diferença
+  entre braços, o que torna o pareamento a única leitura válida. Sob a busca de K não há
+  efeito: t abaixo de 2 e vitória em metade das imagens. Sob K fixo os dois braços passam
+  de t = 2,01, mas com quatro comparações o limiar corrigido fica em aproximadamente 2,68 e
+  nenhum o alcança. O resultado é nulo para a hipótese testada.</p>
+
+  <h3><span class="num">7.1</span>O alinhamento afim é uma reparametrização de K</h3>
+
+  <p>O alinhamento foi motivado pela remoção de deriva de escala. Para a condição com busca
+  de K, essa motivação é incorreta, por identidade algébrica:</p>
+
+  <pre><code>CoC = K·(disp − D_focus),   D_focus = mediana(disp na região)
+disp → a·disp + b  ⟹  D_focus → a·D_focus + b
+⟹ CoC → K·a·(disp − D_focus)</code></pre>
+
+  <p>O deslocamento <code>b</code> cancela na subtração e a escala <code>a</code> é
+  absorvida por K. Verificado empiricamente: <code>K_alinhado/K_cru</code> tem mediana
+  1,335 no <code>Bgrad</code> e 1,308 no <code>Bgeod</code>, correspondendo a
+  <code>1/a</code> com <code>a</code> mediano de 0,744 e 0,755. Excluindo as três amostras
+  censuradas no teto de K, a diferença de SSIM entre alinhar e não alinhar é
+  +1,3 × 10⁻⁵ ± 5,5 × 10⁻⁵.</p>
+
+  <p>O alinhamento permanece necessário por dois outros motivos: torna os K comparáveis
+  entre braços, já que sem ele a mediana reportada seria 194 contra 267 como se fossem a
+  mesma grandeza; e é condição de existência da comparação com K fixo, onde um K
+  compartilhado sobre profundidade 1,7× fora de escala mediria escala e não forma.</p>
+
+  <p>O R² do ajuste afim entre a disparidade dos braços e a da base é 0,968 mediano, com
+  mínimo de 0,61. A relação não é perfeitamente afim, e esse resíduo é a diferença de forma
+  que o experimento pretendia isolar. A diferença existe e não se traduz no SSIM do bokeh.</p>
+
+  <p class="nota"><span class="rot">Escolha de domínio</span>
+  O alinhamento foi feito em disparidade, não em profundidade, por medição: R² de 0,907
+  contra 0,876 no <code>Bgrad</code> e 0,878 contra 0,828 no <code>Bgeod</code>, com a
+  disparidade vencendo em 10 de 10 casos da sonda. Coerente com o renderizador, cujas
+  equações operam em disparidade.</p>
+</section>
+
+<!-- ===================== 8 ===================== -->
+
+<section id="limites">
+  <h2><span class="num">8</span>Limitações</h2>
+
+  <ol class="body">
+    <li><strong>O n efetivo é de grupos, não de imagens.</strong> No Spring teste são 13
+    cenas e não 485 imagens; quadros consecutivos da mesma sequência são aproximadamente o
+    mesmo dado. O desvio entre cenas é 0,2147 e o erro padrão da média 0,0595 — da mesma
+    ordem do maior efeito medido. No DIODE são 10 scans em cada domínio, desbalanceados.</li>
+
+    <li><strong>Duas cenas dominam o Spring teste.</strong> A <code>seq0020</code> tem 77
+    quadros, 16% do split, com <code>d1 = 0,05</code>; a <code>seq0043</code> tem
+    <code>AbsRel = 2,28</code>. Excluindo as duas, o AbsRel do zero-shot cai de 0,3591 para
+    0,1637.</li>
+
+    <li><strong>Os braços com curvatura não eram reprodutíveis.</strong> O backward de
+    <code>F.pad(mode="replicate")</code> na CUDA usa <code>atomicAdd</code>, em 8 pontos do
+    código (4 em <code>geometry.py</code>, 4 em <code>losses.py</code>). Medido: |Δ| médio
+    de 0,0148 no F-borda entre duas execuções da mesma seed, máximo 0,0389, contra 0,0000
+    no berHu puro. A correção existe em <code>depth-riemannian-det/</code> e foi validada
+    bit a bit em 5 épocas, mas todos os números deste relatório vêm do código não
+    determinístico.</li>
+
+    <li><strong>Não há teste de significância nos conjuntos de profundidade.</strong> O que
+    sustenta as leituras é a consistência do sinal entre seeds e entre conjuntos. O único
+    teste formal apresentado é o t pareado da seção 7, e ele não atinge o limiar
+    corrigido.</li>
+
+    <li><strong>Não foi verificado se o DIODE integra o treino do DepthPro.</strong> Se
+    integrar, a vantagem do zero-shot em AbsRel na seção 3 está inflada e a comparação com
+    os braços treinados não é limpa.</li>
+
+    <li><strong>A faixa de profundidade do DIODE interno é estreita</strong>, 4,57 a
+    8,35 m, e o <code>gauss_clamp</code> foi calibrado em outra faixa. O desempenho da
+    curvatura ali pode conter desajuste de escala além do problema de cauda conhecido: a
+    distribuição de |K| tem cauda de lei de potência, com p50 de 4,41 e p99,9 de 3.230.846
+    sobre 135,5 M pixels — sem limite superior, 0,01% dos pixels carregam 99,71% da soma;
+    com limite, ambos os lados saturam e o gradiente desaparece.</li>
+  </ol>
+</section>
+
+<!-- ===================== 9 ===================== -->
+
+<section id="ativos">
+  <h2><span class="num">9</span>Estado dos artefatos</h2>
+
+  <p>O <code>/raid</code> do cluster é área de trabalho, não armazenamento durável. O
+  estado abaixo é de 06/10/2026.</p>
+
+  <figure>
+    <figcaption><b>Tabela 12.</b> Checkpoints por conjunto, presença no Hugging Face e em
+    disco.</figcaption>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>conjunto</th><th>best.pt</th><th class="l">repositório</th><th>em disco</th><th class="l">situação</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Campanha de seeds, retreino</td><td>37</td><td class="l">akcit-dephpro</td><td>0</td><td class="l">íntegro no Hub</td></tr>
+          <tr><td>Campanha de seeds, sobreviventes</td><td>10</td><td class="l">akcit-dephpro</td><td>0</td><td class="l">íntegro no Hub</td></tr>
+          <tr><td>Ablação, seed 42</td><td>8 de 10</td><td class="l">akcit-dephpro</td><td>0</td><td class="l neg">2 pesos perdidos</td></tr>
+          <tr><td>Ablação, seeds 43, 44, 47</td><td>18</td><td class="l">akcit-dephpro</td><td>6</td><td class="l">íntegro no Hub</td></tr>
+          <tr><td>Ablação, seeds 45, 46</td><td>12</td><td class="l">akcit-h100n1</td><td>12</td><td class="l">upload em curso</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </figure>
+
+  <p><code>ablacao_spring/heads__B7_champion_prev</code> e
+  <code>heads__B7_normal_dom</code> tinham peso em disco, nunca foram publicados — o
+  repositório tem 8 dos 10 da seed 42 — e o disco foi varrido. As métricas constam das
+  Tabelas 7 e 8 como "B7 campeão anterior" e "B7 normal dominante"; os pesos não existem
+  mais, e qualquer reavaliação com eles passa a ser retreino.</p>
+
+  <p>A causa imediata da falha de publicação: a organização <code>akcit-dephpro</code>
+  atingiu 100,0 GB de armazenamento privado e passou a devolver <code>403 Forbidden</code>
+  no endpoint de LFS, o que interrompeu o upload automático das seeds 45 e 46. O destino
+  alternativo em uso é <code>akcit-h100n1</code>.</p>
+</section>
+
+<footer>
+  <p>Fontes: 311 <code>test_metrics.json</code> em
+  <code>/raid/user_juliadollis/julia_docker/avaliacoes/</code>; artefatos do experimento de
+  bokeh em <code>caminho_a_rotac/</code>, com proveniência idêntica nas 8 condições
+  (<code>pipeline_source_sha256</code> 2bb75ca002fb1537…); relatórios de apoio em
+  <code>RESULTADOS/</code>.</p>
+</footer>
+
+</div>
